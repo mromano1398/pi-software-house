@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
 # Installa i pacchetti esterni e sistema il layout delle pane Herdr.
-# Serve solo per le macchine senza interfaccia: normalmente lo fa /casa.
+# Su Linux e macOS. Su Windows usa installa.ps1, oppure /casa dentro Pi.
 set -e
 
+QUI="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 
 echo "== pacchetti esterni =="
 installa() {
-  local sorgente="$1" nome="$2"
-  printf '  %-38s ' "$nome"
-  if pi install "$sorgente" >/dev/null 2>&1; then
+  printf '  %-42s ' "$2"
+  if pi install "$1" >/dev/null 2>&1; then
     echo "installato"
   else
     echo "gia' presente o errore"
   fi
 }
 
-installa "npm:pi-herdr-agents"              "pi-herdr-agents (referenti in pane)"
-installa "npm:@tintinweb/pi-subagents"      "@tintinweb/pi-subagents (operai)"
-installa "npm:pi-peer"                      "pi-peer (i referenti si parlano)"
-installa "git:github.com/DietrichGebert/ponytail" "ponytail (meno codice)"
+installa "npm:pi-herdr-agents"                    "pi-herdr-agents (referenti in pane Herdr)"
+installa "npm:@tintinweb/pi-subagents"            "@tintinweb/pi-subagents (operai)"
+installa "npm:pi-peer"                            "pi-peer (i referenti si parlano)"
+installa "git:github.com/DietrichGebert/ponytail" "ponytail (scrive meno codice)"
 installa "npm:@juicesharp/rpiv-ask-user-question" "ask-user-question (domande a opzioni)"
-installa "npm:pi-cache-guardian"            "pi-cache-guardian (meno token)"
+installa "npm:pi-cache-guardian"                  "pi-cache-guardian (meno token)"
 
 echo "== layout delle pane =="
 CFG="$AGENT_DIR/npm/node_modules/pi-herdr-agents/config.json"
@@ -42,25 +42,7 @@ else
 fi
 
 echo "== filtro skill di pi-herdr-agents =="
-python3 - "$AGENT_DIR/settings.json" <<'PY'
-import json, sys, pathlib
-p = pathlib.Path(sys.argv[1])
-d = json.loads(p.read_text()) if p.exists() else {}
-out, seen = [], False
-for e in d.get("packages") or []:
-    src = e.get("source") if isinstance(e, dict) else e
-    if isinstance(src, str) and "pi-herdr-agents" in src:
-        if not seen:
-            out.append({"source": "npm:pi-herdr-agents", "skills": []})
-            seen = True
-    else:
-        out.append(e)
-if not seen:
-    out.append({"source": "npm:pi-herdr-agents", "skills": []})
-d["packages"] = out
-p.write_text(json.dumps(d, indent=2) + "\n")
-print("  settings.json aggiornato")
-PY
+node "$QUI/filtro.mjs"
 
 echo
 echo "Fatto. Riavvia Pi."

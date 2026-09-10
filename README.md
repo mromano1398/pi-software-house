@@ -44,7 +44,7 @@ Dici sì e fa tutto da solo: scarica i sei pacchetti, scrive il layout delle pan
 
 Se dici no, non lo richiede più. Per farlo dopo: comando **`/casa`** (mostra lo stato e sistema quello che manca).
 
-Per una macchina senza interfaccia (CI, script): `bash setup/installa.sh`.
+Per una macchina senza interfaccia (CI, script): `bash setup/installa.sh` su Linux e macOS, `setup/installa.ps1` su Windows.
 
 **Requisiti:** [Herdr](https://herdr.dev) installato — le pane dei referenti ci girano dentro. Senza Herdr il resto funziona, ma i referenti non hanno la loro pane.
 
