@@ -20,7 +20,7 @@ Dopo: apri Pi in un progetto, dici **cosa vuoi ottenere** in italiano normale, e
 ## Installazione
 
 ```bash
-pi install git:github.com/TUONOME/pi-software-house
+pi install git:github.com/mromano1398/pi-software-house
 ```
 
 Poi apri Pi. **Alla prima apertura chiede una volta sola:**
@@ -103,5 +103,5 @@ Un sub-agente non interroga mai l'utente: se gli serve un'autorizzazione fuori d
 ## Disinstallare
 
 ```bash
-pi remove git:github.com/TUONOME/pi-software-house
+pi remove git:github.com/mromano1398/pi-software-house
 ```

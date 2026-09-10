@@ -7,6 +7,14 @@
   ],
   "license": "MIT",
   "author": "Mirko Romano",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mromano1398/pi-software-house.git"
+  },
+  "homepage": "https://github.com/mromano1398/pi-software-house#readme",
+  "bugs": {
+    "url": "https://github.com/mromano1398/pi-software-house/issues"
+  },
   "files": [
     "extensions",
     "skills",
