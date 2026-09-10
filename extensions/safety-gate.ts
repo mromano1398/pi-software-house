@@ -10,6 +10,8 @@
  *  - force-push su main
  * Segreti e chiavi: rifiutati sempre.
  *
+ * Vale sia per la shell di Unix (`bash`) sia per PowerShell/cmd su Windows.
+ *
  * /safety off|on|status
  */
 
@@ -19,7 +21,11 @@ import path from "node:path";
 
 type Rule = { name: string; re: RegExp };
 
+/** I tool che eseguono comandi: bash su Unix, powershell su Windows. */
+const SHELL_TOOLS = new Set(["bash", "powershell"]);
+
 const SYSTEM_LEVEL: Rule[] = [
+	// Unix
 	{ name: "sudo", re: /(^|[;&|(]\s*)sudo\b/i },
 	{ name: "mkfs/wipefs", re: /\b(mkfs(\.\w+)?|wipefs)\b/i },
 	{ name: "dd to disk", re: /\bdd\b[^\n]*\bof=\/dev\//i },
@@ -28,36 +34,69 @@ const SYSTEM_LEVEL: Rule[] = [
 	{ name: "publish", re: /\b(npm|pnpm|yarn)\s+publish\b|\btwine\s+upload\b|\bcargo\s+publish\b/i },
 	{ name: "docker prune", re: /\bdocker\s+(system\s+)?prune\b/i },
 	{ name: "force push to main", re: /\bgit\s+push\b[^\n]*\s(--force|-f)\b[^\n]*\b(main|master)\b/i },
+	// Windows / PowerShell
+	{ name: "formattazione disco", re: /\b(Format-Volume|Clear-Disk|Initialize-Disk|diskpart)\b/i },
+	{ name: "spegnimento/riavvio", re: /\b(Stop-Computer|Restart-Computer)\b/i },
+	{ name: "pipe to shell (PS)", re: /\b(Invoke-WebRequest|iwr|curl)\b[\s\S]{0,300}\|\s*(Invoke-Expression|iex)\b/i },
+	{ name: "esecuzione di script remoti", re: /\b(Invoke-Expression|iex)\b[^\n]*\b(Invoke-WebRequest|iwr|DownloadString)\b/i },
+	{ name: "execution policy", re: /\bSet-ExecutionPolicy\b/i },
+	{ name: "publish (PS)", re: /\b(npm|pnpm|yarn|dotnet)\s+(publish|nuget\s+push)\b/i },
+	{ name: "force push to main (PS)", re: /\bgit\s+push\b[^\n]*\s(--force|-f)\b[^\n]*\b(main|master)\b/i },
 ];
 
 const WIPE_ALL: Rule[] = [
+	// Unix
 	{ name: "rm -rf sulla cartella corrente", re: /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+(\.\/?|\*|\$PWD|"\$PWD"|\$\(pwd\))\s*$/i },
 	{ name: "rm -rf su una cartella dell'utente", re: /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+~\//i },
 	{ name: "git reset --hard", re: /\bgit\s+reset\s+[^\n]*--hard\b/i },
 	{ name: "git clean -fdx", re: /\bgit\s+clean\b[^\n]*-[a-zA-Z]*[fd][a-zA-Z]*/i },
 	{ name: "find -delete", re: /\bfind\b[^\n]*-delete\b/i },
 	{ name: "svuota la cartella", re: /\b(shred|truncate)\b[^\n]*\s(\.|\*)(\s|$)/i },
+	// Windows / PowerShell / cmd
+	{ name: "Remove-Item -Recurse -Force .", re: /\bRemove-Item\b[^\n]*-[^\n]*(Recurse|Force)[^\n]*\s(\.|\*)(\s|$)/i },
+	{ name: "rm -r -fo (alias PS)", re: /\brm\s+-[a-zA-Z-]*r[a-zA-Z-]*\s*-?fo?\s*(\.|\*)(\s|$)/i },
+	{ name: "del /s /q", re: /\b(del|erase)\b[^\n]*\/(s|q)/i },
+	{ name: "rmdir /s /q", re: /\b(rmdir|rd)\b[^\n]*\/s/i },
+	{ name: "git reset --hard (PS)", re: /\bgit\s+reset\s+[^\n]*--hard\b/i },
+	{ name: "cancella la cartella dell'utente", re: /\bRemove-Item\b[^\n]*\$HOME\b/i },
 ];
 
-const HARD_BLOCK_ROOTS = [
-	path.join(os.homedir(), ".ssh"),
-	path.join(os.homedir(), ".gnupg"),
-	path.join(os.homedir(), ".pi", "agent", "auth.json"),
-	"/etc",
-	"/usr",
-	"/bin",
-	"/sbin",
-	"/boot",
-	"/var",
-];
+/** Cartelle di sistema: scrittura sempre rifiutata. */
+function systemRoots(): string[] {
+	const roots = [
+		path.join(os.homedir(), ".ssh"),
+		path.join(os.homedir(), ".gnupg"),
+		path.join(os.homedir(), ".pi", "agent", "auth.json"),
+		"/etc",
+		"/usr",
+		"/bin",
+		"/sbin",
+		"/boot",
+		"/var",
+	];
+	const win = process.env.SystemRoot || process.env.WINDIR;
+	if (win) roots.push(win);
+	for (const key of ["ProgramFiles", "ProgramFiles(x86)", "ProgramData"]) {
+		const v = process.env[key];
+		if (v) roots.push(v);
+	}
+	return roots;
+}
 
-const SECRET_BASENAMES = new Set(["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "auth.json", ".netrc", ".pgpass"]);
+const SECRET_BASENAMES = new Set([
+	"id_rsa",
+	"id_dsa",
+	"id_ecdsa",
+	"id_ed25519",
+	"auth.json",
+	".netrc",
+	".pgpass",
+	"credentials",
+]);
 const SECRET_EXT = /\.(pem|p12|pfx|key|keystore|jks)$/i;
 
-const DESTRUCTIVE_CMD = /\b(rm|rmdir|mv|chmod|chown|truncate|shred|tee)\b|(^|\s)>\s*\//;
-
-const READ_TOOLS = new Set(["read", "grep", "find", "ls"]);
-const WRITE_TOOLS = new Set(["write", "edit"]);
+const DESTRUCTIVE_CMD =
+	/\b(rm|rmdir|mv|chmod|chown|truncate|shred|tee)\b|(^|\s)>\s*\/|\b(Remove-Item|del|erase|rd|Move-Item|Set-Content|Clear-Content|Out-File)\b/i;
 
 /** Gli unici percorsi che un referente può scrivere: assunzioni e documenti. */
 const REFERENT_WRITABLE = [
@@ -68,6 +107,9 @@ const REFERENT_WRITABLE = [
 	"DECISIONS.md",
 	"PROJECT.md",
 ];
+
+const READ_TOOLS = new Set(["read", "grep", "find", "ls"]);
+const WRITE_TOOLS = new Set(["write", "edit"]);
 
 function resolvePath(p: string, cwd: string): string {
 	if (!p) return "";
@@ -83,7 +125,7 @@ function isSecretPath(abs: string): boolean {
 }
 
 function isProtectedRoot(abs: string): boolean {
-	return HARD_BLOCK_ROOTS.some((blocked) => abs === blocked || abs.startsWith(blocked + path.sep));
+	return systemRoots().some((blocked) => abs === blocked || abs.startsWith(blocked + path.sep));
 }
 
 function insideProject(abs: string, cwd: string): boolean {
@@ -91,10 +133,10 @@ function insideProject(abs: string, cwd: string): boolean {
 	return abs === cwd || abs.startsWith(root);
 }
 
-/** Percorsi assoluti o ~/ citati in un comando shell. */
+/** Percorsi assoluti o ~/ citati in un comando: Unix e Windows. */
 function externalTargets(command: string, cwd: string): string[] {
 	const found: string[] = [];
-	const re = /(?:^|\s)(~\/[^\s;|&)'"]*|\/[A-Za-z0-9._/-]+)/g;
+	const re = /(?:^|\s)(~\/[^\s;|&)'"]*|\/[A-Za-z0-9._/-]+|[A-Za-z]:[\\/][^\s;|&)'"]*)/g;
 	for (const m of command.matchAll(re)) {
 		const abs = resolvePath(m[1], cwd);
 		if (!insideProject(abs, cwd)) found.push(abs);
@@ -145,7 +187,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("tool_call", async (event, ctx) => {
 		if (!enabled) return undefined;
 
-		if (event.toolName === "bash") {
+		if (SHELL_TOOLS.has(event.toolName)) {
 			const command = String(event.input.command ?? "");
 
 			const sys = SYSTEM_LEVEL.find((r) => r.re.test(command));
@@ -157,7 +199,11 @@ export default function (pi: ExtensionAPI) {
 			if (DESTRUCTIVE_CMD.test(command)) {
 				const outside = externalTargets(command, ctx.cwd);
 				if (outside.length) {
-					return ask(ctx, `Comando distruttivo fuori dal progetto:\n\n  ${command}\n\n  → ${outside.join("\n  → ")}`, "outside");
+					return ask(
+						ctx,
+						`Comando distruttivo fuori dal progetto:\n\n  ${command}\n\n  → ${outside.join("\n  → ")}`,
+						"outside",
+					);
 				}
 			}
 			return undefined;

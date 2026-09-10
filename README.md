@@ -95,6 +95,15 @@ Il gate dentro il progetto non chiede niente: crea, modifica, cancella, git, scr
 
 Un sub-agente non interroga mai l'utente: se gli serve un'autorizzazione fuori dal progetto viene bloccato e riferisce al suo superiore.
 
+## Windows
+
+Funziona tutto: il manuale, la squadra, gli operai, il gate. Il gate controlla **anche PowerShell e cmd**, non solo bash — blocca `Remove-Item -Recurse -Force .`, `del /s /q`, `rmdir /s /q`, `Format-Volume`, `diskpart`, `iwr … | iex`, `Set-ExecutionPolicy`, `Stop-Computer`, e protegge le cartelle di sistema (`SystemRoot`, `Program Files`, `ProgramData`).
+
+Due cose da sapere:
+
+- `setup/installa.sh` è uno script bash. Su Windows usa **`/casa`** — l'estensione fa lo stesso lavoro senza shell.
+- Le pane dei referenti richiedono [Herdr](https://herdr.dev): verifica che giri sulla tua versione di Windows. Senza, capo e operai funzionano lo stesso, i referenti no.
+
 ## Personalizzare
 
 - **Il manuale**: `manual/casa.md`
