@@ -97,12 +97,31 @@ Un sub-agente non interroga mai l'utente: se gli serve un'autorizzazione fuori d
 
 ## Windows
 
-Funziona tutto: il manuale, la squadra, gli operai, il gate. Il gate controlla **anche PowerShell e cmd**, non solo bash — blocca `Remove-Item -Recurse -Force .`, `del /s /q`, `rmdir /s /q`, `Format-Volume`, `diskpart`, `iwr … | iex`, `Set-ExecutionPolicy`, `Stop-Computer`, e protegge le cartelle di sistema (`SystemRoot`, `Program Files`, `ProgramData`).
+Funziona tutto, **Herdr compreso**: la [documentazione ufficiale](https://herdr.dev/docs/windows-beta/) dice che il supporto nativo Windows è *generally available*, e l'integrazione con Pi è fra quelle supportate. Su ARM64 gira il binario x86_64 in emulazione.
 
-Due cose da sapere:
+Installa Herdr da PowerShell:
 
-- `setup/installa.sh` è uno script bash. Su Windows usa **`/casa`** — l'estensione fa lo stesso lavoro senza shell.
-- Le pane dei referenti richiedono [Herdr](https://herdr.dev): verifica che giri sulla tua versione di Windows. Senza, capo e operai funzionano lo stesso, i referenti no.
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+```
+
+Se la sicurezza aziendale blocca quel comando, nella doc c'è la variante da Prompt dei comandi con `curl.exe`.
+
+Poi la configurazione, a scelta:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup\installa.ps1
+```
+
+oppure dentro Pi: **`/casa`** — fa lo stesso, senza script.
+
+**Cosa è supportato su Windows:** pane native (ConPTY), sessioni che sopravvivono alla chiusura del terminale, riconoscimento degli agenti, pane che si aprono nella cartella giusta, avvio dei workspace, notifiche di sistema. Cioè tutto quello che serve alla squadra.
+
+**Cosa non c'è su Windows** — e a noi non serve: `herdr terminal attach`, Windows come macchina di destinazione di `herdr --remote`, il passaggio di consegne a caldo (*live handoff*, solo Unix), i gruppi di processi Unix.
+
+**Il gate controlla anche PowerShell e cmd**, non solo bash: blocca `Remove-Item -Recurse -Force .`, `del /s /q`, `rmdir /s /q`, `Format-Volume`, `diskpart`, `iwr … | iex`, `Set-ExecutionPolicy`, `Stop-Computer`, e protegge `%SystemRoot%`, `Program Files`, `ProgramData`.
+
+**Una nota:** la skill `diagnosing-bugs` porta un modello di script in bash (`scripts/hitl-loop.template.sh`) per il caso in cui serva un umano nel ciclo. Su Windows adattalo a PowerShell.
 
 ## Personalizzare
 
