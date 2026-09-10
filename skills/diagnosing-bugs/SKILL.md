@@ -7,7 +7,7 @@ description: "Ciclo di diagnosi per bug difficili e regressioni di prestazioni. 
 
 A discipline for hard bugs. Skip phases only when explicitly justified.
 
-When exploring the codebase, read `PROJECT.md` (if it exists) for a mental model of the modules, and respect the decisions already taken in `DECISIONS.md`.
+When exploring the codebase, read `docs/PROGETTO.md` (if it exists) for a mental model of the modules, and respect the decisions already taken in `docs/DECISIONI.md`.
 
 ## Redact
 

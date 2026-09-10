@@ -101,8 +101,8 @@ description: "<una riga: di cosa è esperto e cosa coordina>"
 spawning: false
 enabled: false
 tools: read, bash, grep, find, ls, write, Agent, talk_to, talk_sessions, talk_latest
-model: xai/grok-4.6
-thinking: xhigh
+model: {{referente.model}}
+thinking: {{referente.thinking}}
 ---
 
 Sei il referente dell'area <area-di-questo-progetto>. Non scrivi codice: leggi, decidi, assumi, verifichi.
@@ -121,8 +121,8 @@ name: operaio-<cosa>
 description: "<una riga su cosa fa>"
 tools: read, bash, edit, write, grep, find, ls
 spawning: false
-model: xai/grok-4.6
-thinking: medium
+model: {{operaio.model}}
+thinking: {{operaio.thinking}}
 ---
 Sei l'operaio <cosa-di-questo-progetto>: scrivi qui il pezzo di progetto di cui ti occupi.
 Hai un solo obiettivo. Lo fai, lo verifichi, lo riporti.
@@ -148,6 +148,21 @@ Massimo 6 righe.
 ```
 
 **Trappola:** la `description` va **sempre tra virgolette doppie**. Se contiene `:` non quotati YAML scarta il file in silenzio e l'agente non esiste. Dopo aver scritto un file di agente, verifica che il nome compaia nell'elenco: se non c'è, hai sbagliato le virgolette.
+
+## I modelli — usa questi, non altri
+
+Configurati dal committente col comando `/modelli`. Copiali così come sono: non inventare modelli e non cambiare i livelli di pensiero.
+
+| Ruolo | `model:` | `thinking:` |
+|---|---|---|
+| Tu (capo) | `{{capo.model}}` | `{{capo.thinking}}` |
+| Referente | `{{referente.model}}` | `{{referente.thinking}}` |
+| Operaio che scrive codice | `{{operaio.model}}` | `{{operaio.thinking}}` |
+| Operaio di sola ricognizione | `{{ricognizione.model}}` | `{{ricognizione.thinking}}` |
+| Operaio che tiene i documenti | `{{documenti.model}}` | `{{documenti.thinking}}` |
+| Operaio di revisione | `{{revisione.model}}` | `{{revisione.thinking}}` |
+
+La revisione sta di norma su una famiglia **diversa** da chi scrive: chi scrive non si auto-promuove.
 
 ## Quanto in grande
 - **T0** domanda, nessuna modifica → rispondi tu, due frasi

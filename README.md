@@ -244,7 +244,7 @@ I sei pacchetti restano: se non li vuoi più, `pi remove` ognuno, oppure `pi lis
 pi-software-house/
 ├── manual/casa.md            il manuale: ruoli, organigramma, documenti, regole
 ├── extensions/
-│   ├── casa.ts               inietta il manuale nel system prompt
+│   ├── casa.ts               inietta il manuale nel system prompt e gestisce /modelli
 │   ├── setup.ts              configura tutto alla prima apertura (/casa)
 │   ├── safety-gate.ts        il gate: libertà dentro, prudenza fuori
 │   ├── notify.ts             avviso sul desktop quando ha finito
@@ -306,7 +306,22 @@ Valgono in ogni progetto e le hanno tutti, capo compreso:
 
 ## I modelli
 
-Di serie tutto sta sull'**abbonamento Grok**, tranne la revisione:
+**Non si editano a mano: si scelgono col comando `/modelli` dentro Pi.**
+
+```
+/modelli
+  ti mostra i modelli in uso, ruolo per ruolo
+  → scegli il ruolo
+  → scegli il provider   (solo quelli per cui hai l'accesso)
+  → scegli il modello    (con filtro, se sono tanti)
+  → scegli il livello di pensiero
+```
+
+Se il ruolo che cambi è il **capo**, ti chiede anche se applicarlo subito a questa sessione e se renderlo il predefinito per le sessioni nuove.
+
+La scelta finisce in `~/.pi/agent/pi-software-house/modelli.json` ed è l'**unica fonte**: il manuale che il capo riceve viene compilato con quei valori, quindi i referenti e gli operai che assume nascono già col modello giusto. Non c'è niente da tenere allineato a mano.
+
+Di serie:
 
 | Ruolo | Modello | Pensiero | Perché |
 |---|---|---|---|
@@ -319,7 +334,7 @@ Di serie tutto sta sull'**abbonamento Grok**, tranne la revisione:
 
 La revisione sta su OpenAI apposta, ed è a volume basso: non consuma il piano piccolo. Ripiego a pagamento, se serve: `openrouter/deepseek/deepseek-v4-flash`.
 
-Si cambiano in `manual/casa.md` e in `skills/crew/SKILL.md`. Il modello di un singolo agente si imposta nel suo file, campo `model:`.
+Se preferisci editare il file a mano, `modelli.json` è leggibile: una voce per ruolo, con `model` e `thinking`.
 
 ## La sicurezza
 
@@ -352,7 +367,8 @@ Su Windows vale lo stesso per PowerShell e cmd: `Remove-Item -Recurse -Force .`,
 | Cosa vuoi cambiare | Dove |
 |---|---|
 | Le regole, i ruoli, i tetti di righe | `manual/casa.md` |
-| I modelli | `manual/casa.md` e `skills/crew/SKILL.md` |
+| Le regole dei template degli agenti | `manual/casa.md`, sezione finale |
+| I modelli LLM | comando **`/modelli`** (scrive `~/.pi/agent/pi-software-house/modelli.json`) |
 | Il comportamento di un ruolo | il suo file in `.pi/agents/` o `.agents/agents/` |
 | Il layout delle pane | `extensions/setup.ts`, costante `PANE_CONFIG` |
 | Le regole del gate | `extensions/safety-gate.ts` |

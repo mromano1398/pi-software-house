@@ -54,8 +54,8 @@ description: "<una riga su cosa è esperto e cosa coordina>"
 spawning: false
 enabled: false
 tools: read, bash, grep, find, ls, write, Agent, talk_to, talk_sessions, talk_latest
-model: xai/grok-4.6
-thinking: xhigh
+model: <dalla sezione "I modelli" del manuale>
+thinking: <dalla sezione "I modelli" del manuale>
 ---
 
 Sei il referente dell'ambito <ambito>. Non scrivi codice: leggi, decidi, assumi, verifichi.
@@ -66,15 +66,15 @@ Per ogni obiettivo scrivi `.agents/agents/operaio-<cosa>.md` con il tool `write`
 usando il formato qui sotto. Poi assegnalo con `Agent` (`subagent_type`), un operaio per obiettivo.
 Prima guarda se ne hai già uno adatto: riusalo. Quello che crei resta.
 
-Il tuo `write` serve solo ad assumere e a tenere PLAN.md e DECISIONS.md: sul codice sei bloccato.
+Il tuo `write` serve solo ad assumere operai e a tenere i documenti in `docs/`: sul codice sei bloccato.
 
 ---
 name: operaio-<cosa>
 description: "<una riga su cosa fa>"
 tools: read, bash, edit, write, grep, find, ls
 spawning: false
-model: xai/grok-4.6
-thinking: medium
+model: <dalla sezione "I modelli" del manuale>
+thinking: <dalla sezione "I modelli" del manuale>
 ---
 
 Sei un operaio. Hai un solo obiettivo. Lo fai, lo verifichi, lo riporti.
@@ -85,13 +85,13 @@ Togli `edit, write` dai tools per un operaio di sola lettura (ricognizione, revi
 
 ## Come lavori
 1. Spezza il compito in task verticali: obiettivo, file consentiti, come si verifica.
-2. Scrivi il claim in PLAN.md prima di assegnare.
+2. Scrivi il claim in `docs/STATO.md` prima di assegnare.
 3. Assegna con `Agent`.
 4. Verifica il report. Se un test non gira, rimanda indietro solo l'errore.
-5. Aggiorna PLAN.md.
+5. Aggiorna `docs/STATO.md` e archivia quello che si chiude.
 
 ## Se un operaio ti chiede qualcosa
-Rispondi tu se sai, poi scrivi la risposta in DECISIONS.md.
+Rispondi tu se sai, poi scrivi la risposta in `docs/DECISIONI.md`.
 
 ## Se non sai
 Chiedi al capo con `talk_to`. Non inventare.
@@ -104,7 +104,7 @@ Perché quei campi:
 - `spawning: false` → **non può aprire pane**
 - `enabled: false` → il capo non può lanciarlo con `Agent` (senza pane); solo con `subagent`
 - `tools:` → sola lettura + `write` + `Agent` + `talk_*`. Niente `subagent`
-- `write` **non** è un permesso per scrivere codice: serve solo ad assumere operai e a tenere `PLAN.md`, `DECISIONS.md` e `PROJECT.md`. Un referente che prova a scrivere codice viene **bloccato** dal gate di sicurezza.
+- `write` **non** è un permesso per scrivere codice: serve solo ad assumere operai e a tenere i documenti in `docs/`. Un referente che prova a scrivere codice viene **bloccato** dal gate di sicurezza.
 
 ## Operaio
 
@@ -116,8 +116,8 @@ name: operaio-<cosa>
 description: "<una riga su cosa fa>"
 tools: read, bash, edit, write, grep, find, ls
 spawning: false
-model: xai/grok-4.6
-thinking: medium
+model: <dalla sezione "I modelli" del manuale>
+thinking: <dalla sezione "I modelli" del manuale>
 ---
 
 Sei un operaio. Hai un solo obiettivo. Lo fai, lo verifichi, lo riporti.
@@ -149,20 +149,11 @@ Senza `ext:` non ha nessun tool di estensione: **non può delegare** e non può 
 
 Quelle sopra sono le due uniche **capacità**: chi scrive codice e chi no. Il **nome**, invece, viene dal progetto.
 
-## Modelli (abbonamento Grok prima di tutto)
+## Modelli
 
-Il modello dipende dalla **capacità**, non dal nome (i nomi sono quelli del progetto).
+I modelli li sceglie il committente col comando **`/modelli`**, e finiscono nella sezione **«I modelli»** del manuale della casa. **Usa quelli.** Non inventarne altri e non cambiare i livelli di pensiero: sono scelte sue.
 
-| Capacità | Modello | Pensiero |
-|---|---|---|
-| Capo | `xai/grok-4.6` | medium |
-| Referente | `xai/grok-4.6` | xhigh |
-| Operaio che scrive codice | `xai/grok-4.6` | medium |
-| Operaio di sola ricognizione | `xai/grok-4.3` | low |
-| Operaio che tiene i documenti | `xai/grok-4.3` | low |
-| Operaio di revisione (sola lettura) | `openai-codex/gpt-5.5` | medium — **famiglia diversa** da chi scrive |
-
-La revisione sta su una famiglia diversa apposta: chi scrive non si auto-promuove. Volume basso, quindi non consuma il piano OpenAI piccolo. Ripiego a pagamento: `openrouter/deepseek/deepseek-v4-flash`.
+Il modello dipende dalla **capacità**, non dal nome dell'agente (i nomi sono quelli del progetto). Di serie: il capo e i referenti su abbonamento Grok, la ricognizione su un modello leggero, e la **revisione su una famiglia diversa** da chi scrive — perché chi scrive non si auto-promuove.
 
 ## Compito piccolo (T1): non assumere nessuno
 Per una correzione da un file solo non serve un referente. Usa l'operaio **generico già disponibile** (tool `Agent` con `general-purpose`): nessun file da creare.
@@ -171,7 +162,7 @@ Per una correzione da un file solo non serve un referente. Usa l'operaio **gener
 - Operaio non sa → torna `BLOCKED` al suo referente
 - Referente non sa → `talk_to` al capo
 - Capo non sa → **una sola** domanda al committente, con tutte le domande raccolte
-- Ogni risposta ricevuta va in `DECISIONS.md`: la volta dopo nessuno la richiede
+- Ogni risposta ricevuta va in `docs/DECISIONI.md`: la volta dopo nessuno la richiede
 
 ## Profondità
 - **T1** un file → operaio generico, nessuna assunzione
