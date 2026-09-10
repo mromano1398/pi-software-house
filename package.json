@@ -1,0 +1,29 @@
+{
+  "name": "pi-software-house",
+  "version": "1.0.0",
+  "description": "Trasforma Pi in una software house: capo, referenti e operai, documenti di progetto versionati, regole di codice e gate di sicurezza.",
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "MIT",
+  "author": "Mirko Romano",
+  "pi": {
+    "extensions": [
+      "./extensions",
+      "./extensions/plan-mode/index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  }
+}
