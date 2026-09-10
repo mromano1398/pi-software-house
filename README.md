@@ -28,9 +28,11 @@ Poi apri Pi. **Alla prima apertura chiede una volta sola:**
 ```
 Configuro la software house?
   Servono questi pacchetti:
-    • pi-herdr-agents — referenti in pane Herdr
-    • @tintinweb/pi-subagents — operai
+    • pi-herdr-agents — i referenti vivono in una pane Herdr
+    • @tintinweb/pi-subagents — gli operai
     • pi-peer — i referenti parlano tra loro e col capo
+    • ponytail — scrive meno codice: la soluzione piu' corta che funziona
+    • @juicesharp/rpiv-ask-user-question — il capo ti fa le domande a opzioni
     • pi-cache-guardian — meno token
   Va sistemato il layout delle pane Herdr.
   Va filtrata una skill che entra in conflitto (orchestrate).
@@ -38,7 +40,7 @@ Configuro la software house?
   → Sì
 ```
 
-Dici sì e fa tutto da solo: scarica i pacchetti, scrive il layout delle pane, toglie la skill in conflitto. Poi riavvia Pi.
+Dici sì e fa tutto da solo: scarica i sei pacchetti, scrive il layout delle pane, toglie la skill in conflitto. Poi riavvia Pi.
 
 Se dici no, non lo richiede più. Per farlo dopo: comando **`/casa`** (mostra lo stato e sistema quello che manca).
 
@@ -54,7 +56,7 @@ Per una macchina senza interfaccia (CI, script): `bash setup/installa.sh`.
 |---|---|
 | `manual/casa.md` | il manuale iniettato nel system prompt a ogni turno: ruoli, organigramma, documenti, regole di codice |
 | `extensions/casa.ts` | inietta il manuale. A un referente arriva solo la parte "regole per tutti" |
-| `extensions/setup.ts` | alla prima apertura chiede una volta e configura tutto da solo (`/casa` per rivedere) |
+| `extensions/setup.ts` | alla prima apertura chiede una volta e configura tutto da solo: i sei pacchetti esterni, il layout delle pane, il filtro (`/casa` per rivedere) |
 | `extensions/safety-gate.ts` | il gate: dentro il progetto sei libero, fuori dal progetto chiede, i segreti li blocca, un referente può solo assumere e scrivere documenti |
 | `skills/crew` | come si assume un referente e un operaio (formato esatto dei file, permessi, modelli) |
 | `skills/progetto` | come si apre e si tiene la casa del software: creare `docs/`, spezzare un documento troppo lungo, archiviare |

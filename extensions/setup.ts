@@ -17,12 +17,53 @@ const AGENT_DIR = process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "age
 const SETTINGS = join(AGENT_DIR, "settings.json");
 const SKIP_FILE = join(AGENT_DIR, "pi-software-house", "skip-setup");
 
+interface Pacchetto {
+	nome: string;
+	perche: string;
+	/** argomento per `pi install` */
+	installa: string;
+	/** una qualsiasi di queste sorgenti già presente = è installato */
+	sorgenti: string[];
+}
+
 /** I pacchetti esterni che servono alla squadra. */
-const PACCHETTI = [
-	{ nome: "pi-herdr-agents", perche: "referenti in pane Herdr" },
-	{ nome: "@tintinweb/pi-subagents", perche: "operai" },
-	{ nome: "pi-peer", perche: "i referenti parlano tra loro e col capo" },
-	{ nome: "pi-cache-guardian", perche: "meno token" },
+const PACCHETTI: Pacchetto[] = [
+	{
+		nome: "pi-herdr-agents",
+		perche: "i referenti vivono in una pane Herdr",
+		installa: "npm:pi-herdr-agents",
+		sorgenti: ["npm:pi-herdr-agents"],
+	},
+	{
+		nome: "@tintinweb/pi-subagents",
+		perche: "gli operai",
+		installa: "npm:@tintinweb/pi-subagents",
+		sorgenti: ["npm:@tintinweb/pi-subagents"],
+	},
+	{
+		nome: "pi-peer",
+		perche: "i referenti parlano tra loro e col capo",
+		installa: "npm:pi-peer",
+		sorgenti: ["npm:pi-peer"],
+	},
+	{
+		nome: "ponytail",
+		perche: "scrive meno codice: la soluzione piu' corta che funziona",
+		installa: "git:github.com/DietrichGebert/ponytail",
+		sorgenti: ["git:github.com/DietrichGebert/ponytail", "npm:@dietrichgebert/ponytail"],
+	},
+	{
+		nome: "@juicesharp/rpiv-ask-user-question",
+		perche: "il capo ti fa le domande a opzioni, non a testo libero",
+		installa: "npm:@juicesharp/rpiv-ask-user-question",
+		sorgenti: ["npm:@juicesharp/rpiv-ask-user-question"],
+	},
+	{
+		nome: "pi-cache-guardian",
+		perche: "meno token",
+		installa: "npm:pi-cache-guardian",
+		sorgenti: ["npm:pi-cache-guardian"],
+	},
 ];
 
 /** Layout delle pane consigliato. */
@@ -52,9 +93,9 @@ function sorgentiInstallate(): Set<string> {
 	return out;
 }
 
-function mancanti(): string[] {
+function mancanti(): Pacchetto[] {
 	const installate = sorgentiInstallate();
-	return PACCHETTI.filter((p) => !installate.has(`npm:${p.nome}`)).map((p) => p.nome);
+	return PACCHETTI.filter((p) => !p.sorgenti.some((s) => installate.has(s)));
 }
 
 function paneDaSistemare(): boolean {
@@ -105,7 +146,7 @@ function scriviFiltro(): void {
 }
 
 interface Stato {
-	mancano: string[];
+	mancano: Pacchetto[];
 	paneDaFare: boolean;
 	filtroOk: boolean;
 	tuttoOk: boolean;
@@ -130,12 +171,12 @@ function comandoPi(): { cmd: string; pre: string[] } {
 async function configura(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
 	const { cmd, pre } = comandoPi();
 	let errori = 0;
-	for (const nome of mancanti()) {
-		ctx.ui.notify(`Installo ${nome}…`, "info");
-		const res = await pi.exec(cmd, [...pre, "install", `npm:${nome}`]);
+	for (const p of mancanti()) {
+		ctx.ui.notify(`Installo ${p.nome}…`, "info");
+		const res = await pi.exec(cmd, [...pre, "install", p.installa]);
 		if (res.code !== 0) {
 			errori++;
-			ctx.ui.notify(`Non sono riuscito a installare ${nome}: ${res.stderr || res.stdout}`, "error");
+			ctx.ui.notify(`Non sono riuscito a installare ${p.nome}: ${res.stderr || res.stdout}`, "error");
 		}
 	}
 	if (paneDaSistemare()) scriviPaneConfig();
@@ -154,11 +195,12 @@ export default function (pi: ExtensionAPI) {
 		handler: async (_args, ctx) => {
 			const s = stato();
 			if (s.tuttoOk) {
-				ctx.ui.notify("Software house a posto: pacchetti, pane e filtro configurati.", "info");
+				const nomi = PACCHETTI.map((p) => p.nome).join(", ");
+				ctx.ui.notify(`Software house a posto.\nPacchetti: ${nomi}`, "info");
 				return;
 			}
 			const righe = [
-				s.mancano.length ? `mancano: ${s.mancano.join(", ")}` : "pacchetti: ok",
+				s.mancano.length ? `mancano: ${s.mancano.map((p) => p.nome).join(", ")}` : "pacchetti: ok",
 				s.paneDaFare ? "layout delle pane: da sistemare" : "layout delle pane: ok",
 				s.filtroOk ? "filtro skill: ok" : "filtro skill: da sistemare",
 			];
@@ -181,10 +223,7 @@ export default function (pi: ExtensionAPI) {
 		const righe: string[] = [];
 		if (s.mancano.length) {
 			righe.push("Servono questi pacchetti:");
-			for (const nome of s.mancano) {
-				const p = PACCHETTI.find((x) => x.nome === nome);
-				righe.push(`  • ${nome} — ${p?.perche ?? ""}`);
-			}
+			for (const p of s.mancano) righe.push(`  • ${p.nome} — ${p.perche}`);
 		}
 		if (s.paneDaFare) righe.push("Va sistemato il layout delle pane Herdr.");
 		if (!s.filtroOk) righe.push("Va filtrata una skill che entra in conflitto (orchestrate).");
