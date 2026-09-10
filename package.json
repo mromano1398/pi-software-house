@@ -7,6 +7,13 @@
   ],
   "license": "MIT",
   "author": "Mirko Romano",
+  "files": [
+    "extensions",
+    "skills",
+    "prompts",
+    "manual",
+    "setup"
+  ],
   "pi": {
     "extensions": [
       "./extensions",
