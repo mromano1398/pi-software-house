@@ -17,13 +17,57 @@ Dopo: apri Pi in un progetto, dici **cosa vuoi ottenere** in italiano normale, e
 5. quello che si chiude va in archivio, quello che si decide va in `docs/DECISIONI.md`
 6. tu ricevi **una risposta in tre righe**, e una sola domanda se serve una decisione
 
+## Cosa funziona, per sistema
+
+| | Linux | macOS | Windows |
+|---|---|---|---|
+| Capo, referenti, operai | sì | sì | sì |
+| Referenti in pane Herdr | sì | sì | sì (ConPTY) |
+| Operai (senza pane) | sì | sì | sì |
+| Documenti, skill, prompt | sì | sì | sì |
+| Configurazione automatica `/casa` | sì | sì | sì |
+| Gate di sicurezza | bash | bash | PowerShell e cmd |
+| Script di configurazione | `setup/installa.sh` | `setup/installa.sh` | `setup/installa.ps1` |
+| `herdr terminal attach` | sì | sì | **no** |
+| Windows come destinazione di `herdr --remote` | — | — | **no** |
+| Passaggio di consegne a caldo (*live handoff*) | sì | sì | **no** |
+| Gruppi di processi Unix | sì | sì | **no** |
+| Clipboard immagini nelle pane locali | sì | sì | **no** |
+| Plugin di Herdr | sì | sì | preview |
+
+Le righe con **no** sono capacità di Herdr che **questa squadra non usa**. Quello che ci serve davvero — pane dei referenti, riconoscimento degli agenti, pane che si aprono nella cartella giusta, sessioni che sopravvivono alla chiusura del terminale — c'è su tutti e tre.
+
+Su Windows ARM64 gira il binario x86_64 in emulazione.
+
 ## Installazione
+
+### 1. Il pacchetto — tutti i sistemi
 
 ```bash
 pi install git:github.com/mromano1398/pi-software-house
 ```
 
-Poi apri Pi. **Alla prima apertura chiede una volta sola:**
+### 2. Herdr — le pane dei referenti
+
+**Linux e macOS**
+
+```bash
+curl -fsSL https://herdr.dev/install.sh | sh
+```
+
+**Windows**, da PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+```
+
+Se la sicurezza aziendale blocca quel comando, nella [documentazione di Herdr](https://herdr.dev/docs/install/) c'è la variante da Prompt dei comandi con `curl.exe`.
+
+> Senza Herdr funziona tutto tranne le pane: capo e operai lavorano, i referenti no.
+
+### 3. Il resto, da solo
+
+Apri Pi. **Alla prima apertura chiede una volta sola:**
 
 ```
 Configuro la software house?
@@ -44,9 +88,19 @@ Dici sì e fa tutto da solo: scarica i sei pacchetti, scrive il layout delle pan
 
 Se dici no, non lo richiede più. Per farlo dopo: comando **`/casa`** (mostra lo stato e sistema quello che manca).
 
-Per una macchina senza interfaccia (CI, script): `bash setup/installa.sh` su Linux e macOS, `setup/installa.ps1` su Windows.
+### 4. Su una macchina senza interfaccia
 
-**Requisiti:** [Herdr](https://herdr.dev) installato — le pane dei referenti ci girano dentro. Senza Herdr il resto funziona, ma i referenti non hanno la loro pane.
+**Linux e macOS**
+
+```bash
+bash setup/installa.sh
+```
+
+**Windows**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup\installa.ps1
+```
 
 **Modelli:** di serie usa l'abbonamento Grok. Se non ce l'hai, cambia `model:` nei file degli agenti e in `manual/casa.md`.
 
@@ -95,33 +149,11 @@ Il gate dentro il progetto non chiede niente: crea, modifica, cancella, git, scr
 
 Un sub-agente non interroga mai l'utente: se gli serve un'autorizzazione fuori dal progetto viene bloccato e riferisce al suo superiore.
 
-## Windows
+## Note per sistema
 
-Funziona tutto, **Herdr compreso**: la [documentazione ufficiale](https://herdr.dev/docs/windows-beta/) dice che il supporto nativo Windows è *generally available*, e l'integrazione con Pi è fra quelle supportate. Su ARM64 gira il binario x86_64 in emulazione.
+**Su Windows** il gate controlla **PowerShell e cmd**, non solo bash: blocca `Remove-Item -Recurse -Force .`, `del /s /q`, `rmdir /s /q`, `Format-Volume`, `diskpart`, `iwr … | iex`, `Set-ExecutionPolicy`, `Stop-Computer`, e protegge `%SystemRoot%`, `Program Files`, `ProgramData`.
 
-Installa Herdr da PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
-```
-
-Se la sicurezza aziendale blocca quel comando, nella doc c'è la variante da Prompt dei comandi con `curl.exe`.
-
-Poi la configurazione, a scelta:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\setup\installa.ps1
-```
-
-oppure dentro Pi: **`/casa`** — fa lo stesso, senza script.
-
-**Cosa è supportato su Windows:** pane native (ConPTY), sessioni che sopravvivono alla chiusura del terminale, riconoscimento degli agenti, pane che si aprono nella cartella giusta, avvio dei workspace, notifiche di sistema. Cioè tutto quello che serve alla squadra.
-
-**Cosa non c'è su Windows** — e a noi non serve: `herdr terminal attach`, Windows come macchina di destinazione di `herdr --remote`, il passaggio di consegne a caldo (*live handoff*, solo Unix), i gruppi di processi Unix.
-
-**Il gate controlla anche PowerShell e cmd**, non solo bash: blocca `Remove-Item -Recurse -Force .`, `del /s /q`, `rmdir /s /q`, `Format-Volume`, `diskpart`, `iwr … | iex`, `Set-ExecutionPolicy`, `Stop-Computer`, e protegge `%SystemRoot%`, `Program Files`, `ProgramData`.
-
-**Una nota:** la skill `diagnosing-bugs` porta un modello di script in bash (`scripts/hitl-loop.template.sh`) per il caso in cui serva un umano nel ciclo. Su Windows adattalo a PowerShell.
+La skill `diagnosing-bugs` porta un modello di script in **bash** (`scripts/hitl-loop.template.sh`) per il caso in cui serva un umano nel ciclo: su Windows adattalo a PowerShell.
 
 ## Personalizzare
 
