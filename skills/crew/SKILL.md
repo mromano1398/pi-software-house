@@ -53,7 +53,7 @@ name: referente-<ambito>
 description: "<una riga su cosa è esperto e cosa coordina>"
 spawning: false
 enabled: false
-tools: read, bash, grep, find, ls, write, Agent, talk_to, talk_sessions, talk_latest
+tools: read, bash, grep, find, ls, write, Agent, get_subagent_result, steer_subagent, talk_to, talk_sessions, talk_latest
 model: <dalla sezione "I modelli" del manuale>
 thinking: <dalla sezione "I modelli" del manuale>
 ---
@@ -66,12 +66,27 @@ Per ogni obiettivo scrivi `.agents/agents/operaio-<cosa>.md` con il tool `write`
 usando il formato qui sotto. Poi assegnalo con `Agent` (`subagent_type`), un operaio per obiettivo.
 Prima guarda se ne hai già uno adatto: riusalo. Quello che crei resta.
 
-Il tuo `write` serve solo ad assumere operai e a tenere i documenti in `docs/`: sul codice sei bloccato.
+Il tuo `write` serve solo ad assumere operai, a scrivere le **skill di progetto** in `.pi/skills/` e a tenere i documenti in `docs/`: sul codice sei bloccato.
+
+## Lavori che tornano: scrivi una skill
+
+Un lavoro che si ripete — una procedura, una convenzione, un controllo da fare sempre — diventa una skill: `.pi/skills/<nome>/SKILL.md`. Vale per questo progetto e la trovi da sola la prossima volta.
+
+```markdown
+---
+name: <nome-in-italiano>
+description: "<quando usarla, una riga>"
+---
+
+<i passi, in ordine>
+```
+
+Nome in italiano, `description` **tra virgolette doppie**. Una skill che andrebbe bene identica in un altro progetto è scritta male.
 
 ---
 name: operaio-<cosa>
 description: "<una riga su cosa fa>"
-tools: read, bash, edit, write, grep, find, ls
+tools: read, bash, edit, write, grep, find, ls, talk_to, talk_sessions
 spawning: false
 model: <dalla sezione "I modelli" del manuale>
 thinking: <dalla sezione "I modelli" del manuale>
@@ -84,17 +99,18 @@ Togli `edit, write` dai tools per un operaio di sola lettura (ricognizione, revi
 ---
 
 ## Come lavori
-1. Spezza il compito in task verticali: obiettivo, file consentiti, come si verifica.
-2. Scrivi il claim in `docs/STATO.md` prima di assegnare.
-3. Assegna con `Agent`.
-4. Verifica il report. Se un test non gira, rimanda indietro solo l'errore.
-5. Aggiorna `docs/STATO.md` e archivia quello che si chiude.
+1. **Prima di tutto**: `talk_sessions` e trova il peer marcato `(current)` — quello è **il tuo indirizzo**.
+2. Spezza il compito in task verticali: obiettivo, file consentiti, come si verifica.
+3. Scrivi il claim in `docs/STATO.md` prima di assegnare.
+4. Assegna con `Agent`, e scrivi nel compito: «Se ti serve qualcosa mentre lavori, `talk_to` su `<indirizzo>`. Se non arriva risposta, torna `BLOCKED`.»
+5. Verifica il report. Un operaio già in corsa lo leggi con `get_subagent_result` e lo correggi con `steer_subagent`.
+6. Aggiorna `docs/STATO.md` e archivia quello che si chiude.
 
 ## Se un operaio ti chiede qualcosa
-Rispondi tu se sai, poi scrivi la risposta in `docs/DECISIONI.md`.
+Rispondi tu se sai — **non salire di livello per niente** — e scrivi la riga in `docs/DECISIONI.md`: il tuo operaio riparte da lì.
 
 ## Se non sai
-Chiedi al capo con `talk_to`. Non inventare.
+Chiedi **prima agli altri referenti** (`talk_to`), poi al capo. Chi risponde lo scrive in `docs/DECISIONI.md`, e la risposta torna indietro per la stessa strada: prima a te, poi al tuo operaio. Non inventare.
 
 ## Report al capo
 Massimo 6 righe.
@@ -103,7 +119,7 @@ Massimo 6 righe.
 Perché quei campi:
 - `spawning: false` → **non può aprire pane**
 - `enabled: false` → il capo non può lanciarlo con `Agent` (senza pane); solo con `subagent`
-- `tools:` → sola lettura + `write` + `Agent` + `talk_*`. Niente `subagent`
+- `tools:` → sola lettura + `write` + `Agent` + `get_subagent_result`/`steer_subagent` + `talk_*`. Niente `subagent`
 - `write` **non** è un permesso per scrivere codice: serve solo ad assumere operai e a tenere i documenti in `docs/`. Un referente che prova a scrivere codice viene **bloccato** dal gate di sicurezza.
 
 ## Operaio
@@ -114,7 +130,7 @@ Percorso: `.agents/agents/operaio-<cosa>.md` — lo crea il **referente**.
 ---
 name: operaio-<cosa>
 description: "<una riga su cosa fa>"
-tools: read, bash, edit, write, grep, find, ls
+tools: read, bash, edit, write, grep, find, ls, talk_to, talk_sessions
 spawning: false
 model: <dalla sezione "I modelli" del manuale>
 thinking: <dalla sezione "I modelli" del manuale>
@@ -131,11 +147,7 @@ Sei un operaio. Hai un solo obiettivo. Lo fai, lo verifichi, lo riporti.
 - Se fallisce, correggi. Non consegnare codice non verificato.
 
 ## Se ti manca il contesto
-```
-BLOCKED:
-1. <domanda secca>
-```
-Massimo 3 domande, poi fermati. Non inventare.
+Chiedilo **prima al tuo referente**, `talk_to` sull'indirizzo che ti ha dato: la risposta arriva dal vivo. Solo se non arriva, torna indietro: **`BLOCKED:`** seguito da massimo 3 domande secche. Poi fermati. Non inventare.
 
 ## Limiti
 Non deleghi, non esci dal progetto, non fai commit.
@@ -145,7 +157,7 @@ fatto: ... / file: ... / verifica: <comando> -> <esito vero> / dubbi: ...
 ```
 
 **`tools:` decide se scrive.** Togli `edit, write` → diventa di sola lettura.
-Senza `ext:` non ha nessun tool di estensione: **non può delegare** e non può parlare coi peer.
+Un operaio ha `talk_to` e `talk_sessions` e nient'altro di estensione: **può chiedere, non può delegare** (`Agent` e `subagent` restano fuori).
 
 Quelle sopra sono le due uniche **capacità**: chi scrive codice e chi no. Il **nome**, invece, viene dal progetto.
 
@@ -158,11 +170,54 @@ Il modello dipende dalla **capacità**, non dal nome dell'agente (i nomi sono qu
 ## Compito piccolo (T1): non assumere nessuno
 Per una correzione da un file solo non serve un referente. Usa l'operaio **generico già disponibile** (tool `Agent` con `general-purpose`): nessun file da creare.
 
+## Chi parla con chi, davvero
+
+Il team è **vivo e parla in tempo reale**: ogni sessione (capo, referenti, operai) è un peer con un indirizzo. `talk_sessions` li elenca, `talk_to` manda un messaggio e aspetta la risposta, `talk_latest` legge le ultime cose dette.
+
+- **capo ↔ referenti**: diretto, senza intermediari
+- **referente ↔ referente**: diretto — è la prima cosa da fare quando non sai
+- **operaio → suo referente**: l'operaio ha `talk_to`; il referente gli passa il proprio indirizzo nel compito
+- **referente → suo operaio in corsa**: `get_subagent_result` per vederlo, `steer_subagent` per correggerlo
+- **operaio → operaio**: possibile, ma **non si fa**: coordinano i referenti, non gli operai
+
+Se la persona a cui scrivi sta lavorando, il messaggio resta in coda e ti arriva la risposta quando è libera — non la interrompi di proposito e lei non molla quello che stava facendo. Non richiamare, non rispedire la stessa domanda. La strada che c'è **sempre** è il ritorno con `BLOCKED`.
+
+**Attenzione a non bloccarvi a vicenda**: il referente non aspetta mai un operaio in modo bloccante (`get_subagent_result` senza `wait`), perché l'operaio potrebbe stare aspettando lui.
+
+## Chi decide cosa
+
+Si ferma al primo gradino che risponde:
+
+1. **Cerca in `docs/`** — in `DECISIONI.md` la risposta c'è già quasi sempre. È il motivo per cui esiste.
+2. **Guarda il codice** — com'è fatto il resto è come va fatto anche questo.
+3. **Chiedi alla squadra** — l'operaio al suo referente, il referente agli altri referenti. Tra loro si risolve, prima di salire.
+4. **Decidi tu**, se si cambia dopo a costo quasi zero (colore, spazio, nome interno, ordine dei passaggi, dettaglio di layout). Si fa e basta; se non piace, si cambia. Chi decide scrive una riga in `docs/DECISIONI.md`.
+5. **Chiedi al committente** solo se la scelta è sua e sbagliarla costa: soldi, dati, cose che non si disfano, cosa entra nel prodotto, regole di mestiere.
+
+Nel dubbio: se la domanda è «come lo faccio?», decidi tu; se è «lo facciamo?», chiedi.
+
 ## Regole di scambio
-- Operaio non sa → torna `BLOCKED` al suo referente
-- Referente non sa → `talk_to` al capo
-- Capo non sa → **una sola** domanda al committente, con tutte le domande raccolte
-- Ogni risposta ricevuta va in `docs/DECISIONI.md`: la volta dopo nessuno la richiede
+
+Chi non sa **non salta il gradino**: sale di uno per volta, e la risposta torna giù per la stessa strada.
+
+```
+operaio non sa
+  → il SUO referente sa?
+      sì → risponde, scrive in docs/DECISIONI.md, e l'operaio riparte
+      no → un ALTRO referente sa?
+             sì → risponde, scrive in docs/DECISIONI.md, e la risposta torna
+                  indietro per la stessa strada: referente → referente → operaio
+             no → il capo sa?
+                    sì → risponde, scrive in docs/DECISIONI.md, e la risposta scende
+                         fino al referente, che fa ripartire l'operaio
+                    no → il capo raccoglie TUTTE le domande aperte e fa UN solo
+                         messaggio al committente (ask_user_question). La decisione
+                         scende per la stessa strada e va in docs/DECISIONI.md
+```
+
+Nessuno fa due domande e nessuno salta un gradino. Ogni risposta ricevuta va in `docs/DECISIONI.md` **in una riga**: `domanda → risposta`. Non serve altro. La volta dopo nessuno la richiede.
+
+Se il committente contraddice una cosa già scritta lì, **vince lui**: si cambia e si aggiorna quella riga, senza aggiungerne una seconda.
 
 ## Profondità
 - **T1** un file → operaio generico, nessuna assunzione

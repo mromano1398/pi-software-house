@@ -6,6 +6,9 @@
     "pi-package"
   ],
   "license": "MIT",
+  "scripts": {
+    "test": "bun test"
+  },
   "author": "Mirko Romano",
   "repository": {
     "type": "git",

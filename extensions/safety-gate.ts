@@ -95,12 +95,18 @@ const SECRET_BASENAMES = new Set([
 ]);
 const SECRET_EXT = /\.(pem|p12|pfx|key|keystore|jks)$/i;
 
+/** `.env` e le sue varianti sono segreti; i modelli di esempio no. */
+const ENV_SEGRETO = /^\.env(\..+)?$/i;
+const ENV_MODELLO = /\.(example|sample|dist|template)$/i;
+
 const DESTRUCTIVE_CMD =
 	/\b(rm|rmdir|mv|chmod|chown|truncate|shred|tee)\b|(^|\s)>\s*\/|\b(Remove-Item|del|erase|rd|Move-Item|Set-Content|Clear-Content|Out-File)\b/i;
 
-/** Gli unici percorsi che un referente può scrivere: assunzioni e documenti. */
+/** Gli unici percorsi che un referente può scrivere: assunzioni, skill e documenti. */
 const REFERENT_WRITABLE = [
 	path.join(".agents", "agents"),
+	path.join(".pi", "skills"),
+	path.join(".agents", "skills"),
 	"docs",
 	// nomi vecchi, ancora accettati
 	"PLAN.md",
@@ -121,6 +127,7 @@ function isSecretPath(abs: string): boolean {
 	const base = path.basename(abs);
 	if (base.endsWith(".pub") || base === ".env.example" || base === ".env.sample") return false;
 	if (SECRET_BASENAMES.has(base)) return true;
+	if (ENV_SEGRETO.test(base) && !ENV_MODELLO.test(base)) return true;
 	return SECRET_EXT.test(base);
 }
 
@@ -225,7 +232,8 @@ export default function (pi: ExtensionAPI) {
 				return {
 					block: true,
 					reason:
-						"Un referente non scrive codice. Può solo creare operai in .agents/agents/ e aggiornare i documenti in docs/. Il codice lo scrive un operaio.",
+						"Un referente non scrive codice. Può solo creare operai in .agents/agents/, " +
+						"skill di progetto in .pi/skills/ e aggiornare i documenti in docs/. Il codice lo scrive un operaio.",
 				};
 			}
 			return undefined;
@@ -237,6 +245,9 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		if (READ_TOOLS.has(event.toolName)) {
+			// Le skill installate (e i manuali) stanno fuori dal progetto e sono
+			// testo: si leggono sempre, senza chiedere ogni volta il permesso.
+			if (/\.md$/i.test(abs)) return undefined;
 			if (!insideProject(abs, ctx.cwd)) {
 				return ask(ctx, `Lettura fuori dal progetto:\n\n  ${abs}`, `read-outside:${path.dirname(abs)}`);
 			}

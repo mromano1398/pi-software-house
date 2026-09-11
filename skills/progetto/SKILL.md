@@ -28,6 +28,14 @@ Un progetto senza documenti è un progetto che ogni volta riparte da zero. Quest
 
 Tetto: **300 righe a documento**. Oltre, si spezza.
 
+## Come sono fatti i documenti
+
+Ogni documento nasce **con le sue sezioni**, e quelle sezioni sono le **categorie** su cui un giorno si spezzerà. Per questo vanno scelte bene da subito: di norma sono le stesse aree di progetto che trovi in `ARCHITETTURA.md` (`ui`, `dati`, `pagamenti`…), così i pezzi si ritrovano.
+
+**L'unico documento piatto è l'archivio**: una riga per voce, in ordine di tempo, niente sezioni. È il registro di quello che si è fatto — non si legge quasi mai, si scorre.
+
+`STATO.md` è per forza corto: contiene **solo cose aperte**. Quando una voce si chiude, non si archivia dentro `STATO.md`: va in `docs/archivio/`.
+
 ## Progetto nuovo: crea il set
 
 Il capo crea i file **vuoti con i titoli** (non legge codice per farlo). Poi l'esploratore mappa il progetto e i referenti li riempiono.
@@ -119,18 +127,35 @@ Percorsi e scheletri:
 ```markdown
 # Decisioni
 
-Formato: `decisione — perché — data`.
-Chi riceve una risposta la scrive qui. La volta dopo nessuno la richiede.
+Una riga per voce: `domanda → risposta`. Non serve altro.
+
+Le sezioni sono le **categorie**: metti quelle che servono a questo progetto — di norma
+sono le stesse aree di `ARCHITETTURA.md`. Servono quando il file cresce: si spezza per categoria.
+
+## UI e schermate
+- Quella porta si apre in una scheda a parte? → Sì, modale.
+
+## Dati
+- I prezzi si arrotondano all'euro? → No, due decimali.
+
+## Comandi e processi
+- Le migrazioni si lanciano a mano? → Sì.
+
+## Altro
+- ...
 ```
+
+Se la stessa cosa viene decisa di nuovo, si **aggiorna la riga**, non se ne aggiunge una seconda.
 
 ## Spezzare un documento che sfonda il tetto
 
-Non si allunga un documento: si divide per **area**, non per dimensione.
+Non si allunga un documento: si divide per **categoria**, non per dimensione. Le categorie sono già le sue sezioni — il documento è nato diviso.
 
-1. Scegli l'asse: `docs/ARCHITETTURA.md` → `docs/ARCHITETTURA-pagamenti.md`, `docs/ARCHITETTURA-catalogo.md`
+1. Scegli l'asse, che è sempre quello delle sezioni: `docs/ARCHITETTURA.md` → `docs/ARCHITETTURA-pagamenti.md`, `docs/ARCHITETTURA-catalogo.md`; `docs/DECISIONI.md` → `docs/DECISIONI-ui.md`, `docs/DECISIONI-dati.md`; `docs/REGOLE.md` → `docs/REGOLE-frontend.md`
 2. Nel file principale resta un **indice** con una riga per pezzo e il link
 3. Registra in `docs/GLOSSARIO.md` **cosa sta dove** e i **termini** che quel pezzo usa
 4. Nessun pezzo nuovo può superare le 300 righe
+5. L'archivio **non si spezza**: resta una riga per voce
 
 `docs/GLOSSARIO.md`:
 ```markdown
