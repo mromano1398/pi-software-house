@@ -1,33 +1,80 @@
 /**
  * Git Checkpoint Extension
  *
- * Creates git stash checkpoints at each turn so /fork can restore code state.
- * When forking, offers to restore code to that point in history.
+ * Crea checkpoint git a ogni turno cosi' /fork puo' ripristinare il codice.
+ * La mappa vive su disco (.pi/team/checkpoints.json): sopravvive al restart
+ * e alla fine della run, quando il fork serve davvero.
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+function dirCheck(cwd: string): string {
+	return join(cwd, ".pi", "team");
+}
+
+function fileCheck(cwd: string): string {
+	return join(dirCheck(cwd), "checkpoints.json");
+}
+
+function leggi(cwd: string): Record<string, string> {
+	try {
+		const d = JSON.parse(readFileSync(fileCheck(cwd), "utf8"));
+		if (d && typeof d === "object") return d;
+	} catch {
+		// niente checkpoint: il fork tiene il codice com'e'
+	}
+	return {};
+}
+
+function scrivi(cwd: string, m: Record<string, string>): void {
+	try {
+		mkdirSync(dirCheck(cwd), { recursive: true });
+		const chiavi = Object.keys(m).sort();
+		// ponytail: tetto ai checkpoint, i vecchi non servono al fork
+		const potati: Record<string, string> = {};
+		for (const k of chiavi.slice(-50)) potati[k] = m[k]!;
+		writeFileSync(fileCheck(cwd), `${JSON.stringify(potati)}\n`, "utf8");
+	} catch {
+		// senza memoria il fork tiene il codice com'e'
+	}
+}
+
 export default function (pi: ExtensionAPI) {
-	const checkpoints = new Map<string, string>();
 	let currentEntryId: string | undefined;
 
 	// Track the current entry ID when user messages are saved
 	pi.on("tool_result", async (_event, ctx) => {
-		const leaf = ctx.sessionManager.getLeafEntry();
-		if (leaf) currentEntryId = leaf.id;
-	});
-
-	pi.on("turn_start", async () => {
-		// Create a git stash entry before LLM makes changes
-		const { stdout } = await pi.exec("git", ["stash", "create"]);
-		const ref = stdout.trim();
-		if (ref && currentEntryId) {
-			checkpoints.set(currentEntryId, ref);
+		try {
+			const leaf = ctx.sessionManager.getLeafEntry();
+			if (leaf) currentEntryId = leaf.id;
+		} catch {
+			// senza entry niente checkpoint per questo turno
 		}
 	});
 
+	pi.on("turn_start", async (_event, ctx) => {
+		// Fuori da un repo o senza modifiche non c'e' niente da salvare.
+		let ref = "";
+		try {
+			const r = await pi.exec("git", ["stash", "create"]);
+			if (r.code !== 0) return;
+			ref = r.stdout.trim();
+		} catch {
+			return;
+		}
+		if (!ref || !currentEntryId) return;
+		const cwd = (ctx as any)?.cwd ?? process.cwd();
+		if (!existsSync(join(cwd, ".git"))) return;
+		const m = leggi(cwd);
+		m[currentEntryId] = ref;
+		scrivi(cwd, m);
+	});
+
 	pi.on("session_before_fork", async (event, ctx) => {
-		const ref = checkpoints.get(event.entryId);
+		const cwd = (ctx as any)?.cwd ?? process.cwd();
+		const ref = leggi(cwd)[event.entryId];
 		if (!ref) return;
 
 		if (!ctx.hasUI) {
@@ -41,13 +88,16 @@ export default function (pi: ExtensionAPI) {
 		]);
 
 		if (choice?.startsWith("Yes")) {
-			await pi.exec("git", ["stash", "apply", ref]);
-			ctx.ui.notify("Code restored to checkpoint", "info");
+			try {
+				const r = await pi.exec("git", ["stash", "apply", ref]);
+				if (r.code !== 0) {
+					ctx.ui.notify(`Checkpoint non ripristinato: ${r.stderr || r.stdout}`, "error");
+					return;
+				}
+				ctx.ui.notify("Code restored to checkpoint", "info");
+			} catch {
+				ctx.ui.notify("Checkpoint non ripristinato.", "error");
+			}
 		}
-	});
-
-	pi.on("agent_settled", async () => {
-		// Clear checkpoints after the full agent run completes
-		checkpoints.clear();
 	});
 }

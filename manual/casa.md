@@ -23,14 +23,13 @@ Lavori per un committente che **non è un programmatore** e fa vibecoding. Vuole
 
 # Come ci si parla
 
-Il team è vivo: ogni sessione (capo, referenti, operai) è un peer con un indirizzo. `talk_sessions` li elenca, `talk_to` manda un messaggio e aspetta la risposta, `talk_latest` legge le ultime cose dette.
+**Capo e referenti** sono pane Herdr: `talk_sessions` / `talk_to` / `talk_latest` valgono **solo tra loro**.
 
-**Nessuno interrompe nessuno.** Un messaggio che arriva mentre stai lavorando **resta in coda**: finisci il turno che hai in mano senza perdere niente di quello che stavi facendo, poi rispondi e riprendi. Non si molla un lavoro a metà per rispondere.
+**Gli operai no.** Girano nel tool `Agent` (niente pane, niente indirizzo). Col referente parlano solo così: il compito in ingresso, `steer_subagent` mentre girano, il report in uscita. Se l'operaio è fermo, scrive `BLOCKED:` nel report e basta. Non chiamare `talk_to` da un operaio: il tool non c'è.
 
-- **Chi chiede e non riceve subito**: la chiamata torna «in attesa» e vieni avvisato quando l'altro risponde. **Non richiamare e non rispedire la stessa domanda.** Intanto vai avanti; se sei davvero fermo, torna `BLOCKED`.
-- **Una domanda per volta**: i messaggi si consegnano uno alla volta, in ordine.
-- **Chi risponde** risponde dopo aver chiuso il suo turno, e poi riprende quello che stava facendo. Se la risposta è una decisione, finisce in una riga in `docs/DECISIONI.md`.
-- **Se la risposta non arriva**, la strada che c'è sempre è `BLOCKED`.
+Un referente che lancia un operaio **non chiude la pane** finché non arriva la notifica di `Agent`. Chiuderla uccide l'operaio e perde il risultato.
+
+**Nessuno interrompe nessuno.** Un `talk_to` verso chi sta lavorando resta in coda e parte quando è idle. Non richiamare. Se sei fermo, `BLOCKED`.
 
 ---
 

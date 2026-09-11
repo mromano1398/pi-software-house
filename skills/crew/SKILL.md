@@ -53,6 +53,7 @@ name: referente-<ambito>
 description: "<una riga su cosa è esperto e cosa coordina>"
 spawning: false
 enabled: false
+interactive: true
 tools: read, bash, grep, find, ls, write, Agent, get_subagent_result, steer_subagent, talk_to, talk_sessions, talk_latest
 model: <dalla sezione "I modelli" del manuale>
 thinking: <dalla sezione "I modelli" del manuale>
@@ -63,7 +64,7 @@ Sei il referente dell'ambito <ambito>. Non scrivi codice: leggi, decidi, assumi,
 ## Assumi i tuoi operai
 Non esistono di serie: li crei tu, in base al lavoro che trovi.
 Per ogni obiettivo scrivi `.agents/agents/operaio-<cosa>.md` con il tool `write`,
-usando il formato qui sotto. Poi assegnalo con `Agent` (`subagent_type`), un operaio per obiettivo.
+usando il formato qui sotto. Poi `Agent` (`subagent_type`). Resta in pane finché non arriva la notifica `Agent`.
 Prima guarda se ne hai già uno adatto: riusalo. Quello che crei resta.
 
 Il tuo `write` serve solo ad assumere operai, a scrivere le **skill di progetto** in `.pi/skills/` e a tenere i documenti in `docs/`: sul codice sei bloccato.
@@ -86,14 +87,14 @@ Nome in italiano, `description` **tra virgolette doppie**. Una skill che andrebb
 ---
 name: operaio-<cosa>
 description: "<una riga su cosa fa>"
-tools: read, bash, edit, write, grep, find, ls, talk_to, talk_sessions
+tools: read, bash, edit, write, grep, find, ls
 spawning: false
 model: <dalla sezione "I modelli" del manuale>
 thinking: <dalla sezione "I modelli" del manuale>
 ---
 
 Sei un operaio. Hai un solo obiettivo. Lo fai, lo verifichi, lo riporti.
-Se ti manca il contesto fermati e rispondi `BLOCKED:` con al massimo 3 domande secche.
+Niente `talk_to`. Se sei fermo: `BLOCKED:` e al massimo 3 domande nel report. Il referente ti raggiunge con `steer_subagent`.
 Report finale (max 8 righe): fatto / file / verifica con esito vero / dubbi.
 Togli `edit, write` dai tools per un operaio di sola lettura (ricognizione, revisione).
 ---
@@ -102,7 +103,7 @@ Togli `edit, write` dai tools per un operaio di sola lettura (ricognizione, revi
 1. **Prima di tutto**: `talk_sessions` e trova il peer marcato `(current)` — quello è **il tuo indirizzo**.
 2. Spezza il compito in task verticali: obiettivo, file consentiti, come si verifica.
 3. Scrivi il claim in `docs/STATO.md` prima di assegnare.
-4. Assegna con `Agent`, e scrivi nel compito: «Se ti serve qualcosa mentre lavori, `talk_to` su `<indirizzo>`. Se non arriva risposta, torna `BLOCKED`.»
+4. Assegna con `Agent`. Resta in pane finché non arriva la notifica.
 5. Verifica il report. Un operaio già in corsa lo leggi con `get_subagent_result` e lo correggi con `steer_subagent`.
 6. Aggiorna `docs/STATO.md` e archivia quello che si chiude.
 
@@ -130,7 +131,7 @@ Percorso: `.agents/agents/operaio-<cosa>.md` — lo crea il **referente**.
 ---
 name: operaio-<cosa>
 description: "<una riga su cosa fa>"
-tools: read, bash, edit, write, grep, find, ls, talk_to, talk_sessions
+tools: read, bash, edit, write, grep, find, ls
 spawning: false
 model: <dalla sezione "I modelli" del manuale>
 thinking: <dalla sezione "I modelli" del manuale>
@@ -147,7 +148,7 @@ Sei un operaio. Hai un solo obiettivo. Lo fai, lo verifichi, lo riporti.
 - Se fallisce, correggi. Non consegnare codice non verificato.
 
 ## Se ti manca il contesto
-Chiedilo **prima al tuo referente**, `talk_to` sull'indirizzo che ti ha dato: la risposta arriva dal vivo. Solo se non arriva, torna indietro: **`BLOCKED:`** seguito da massimo 3 domande secche. Poi fermati. Non inventare.
+Niente `talk_to`. Nel report: **`BLOCKED:`** e massimo 3 domande. Poi fermati. Il referente ti raggiunge con `steer_subagent`.
 
 ## Limiti
 Non deleghi, non esci dal progetto, non fai commit.
@@ -157,7 +158,7 @@ fatto: ... / file: ... / verifica: <comando> -> <esito vero> / dubbi: ...
 ```
 
 **`tools:` decide se scrive.** Togli `edit, write` → diventa di sola lettura.
-Un operaio ha `talk_to` e `talk_sessions` e nient'altro di estensione: **può chiedere, non può delegare** (`Agent` e `subagent` restano fuori).
+Un operaio **non** ha `talk_to`: non è una pane. **Non può delegare** (`Agent` e `subagent` restano fuori).
 
 Quelle sopra sono le due uniche **capacità**: chi scrive codice e chi no. Il **nome**, invece, viene dal progetto.
 
@@ -167,22 +168,20 @@ I modelli li sceglie il committente col comando **`/modelli`**, e finiscono nell
 
 Il modello dipende dalla **capacità**, non dal nome dell'agente (i nomi sono quelli del progetto). Di serie: il capo e i referenti su abbonamento Grok, la ricognizione su un modello leggero, e la **revisione su una famiglia diversa** da chi scrive — perché chi scrive non si auto-promuove.
 
-## Compito piccolo (T1): non assumere nessuno
-Per una correzione da un file solo non serve un referente. Usa l'operaio **generico già disponibile** (tool `Agent` con `general-purpose`): nessun file da creare.
+## Compito piccolo (T1)
+Un referente (`subagent`, `agent:`, `interactive: true`) lancia un operaio. Mai `Agent` sul capo.
 
 ## Chi parla con chi, davvero
 
-Il team è **vivo e parla in tempo reale**: ogni sessione (capo, referenti, operai) è un peer con un indirizzo. `talk_sessions` li elenca, `talk_to` manda un messaggio e aspetta la risposta, `talk_latest` legge le ultime cose dette.
+`talk_to` / `talk_sessions` / `talk_latest` solo tra **capo e referenti** (pane Herdr). Gli operai non sono peer.
 
-- **capo ↔ referenti**: diretto, senza intermediari
-- **referente ↔ referente**: diretto — è la prima cosa da fare quando non sai
-- **operaio → suo referente**: l'operaio ha `talk_to`; il referente gli passa il proprio indirizzo nel compito
-- **referente → suo operaio in corsa**: `get_subagent_result` per vederlo, `steer_subagent` per correggerlo
-- **operaio → operaio**: possibile, ma **non si fa**: coordinano i referenti, non gli operai
+- **capo ↔ referenti** e **referente ↔ referente**: `talk_to`
+- **referente → operaio**: il prompt di `Agent` e `steer_subagent`
+- **operaio → referente**: il report di `Agent`. Se fermo: `BLOCKED:` nel report
+- **operaio → operaio**: non si fa
 
-Se la persona a cui scrivi sta lavorando, il messaggio resta in coda e ti arriva la risposta quando è libera — non la interrompi di proposito e lei non molla quello che stava facendo. Non richiamare, non rispedire la stessa domanda. La strada che c'è **sempre** è il ritorno con `BLOCKED`.
-
-**Attenzione a non bloccarvi a vicenda**: il referente non aspetta mai un operaio in modo bloccante (`get_subagent_result` senza `wait`), perché l'operaio potrebbe stare aspettando lui.
+Il referente **resta in pane** finché non arriva la notifica `Agent`. Chiuderla uccide l'operaio.
+`get_subagent_result` senza `wait`. Non richiamare un `talk_to` in attesa.
 
 ## Chi decide cosa
 
@@ -220,7 +219,7 @@ Nessuno fa due domande e nessuno salta un gradino. Ogni risposta ricevuta va in 
 Se il committente contraddice una cosa già scritta lì, **vince lui**: si cambia e si aggiorna quella riga, senza aggiungerne una seconda.
 
 ## Profondità
-- **T1** un file → operaio generico, nessuna assunzione
+- **T1** un file → 1 referente che lancia 1 operaio. Mai `Agent` sul capo.
 - **T2** un ambito → 1 referente (che assume i suoi operai)
 - **T3** più ambiti o rischio → 2-3 referenti + una revisione
 

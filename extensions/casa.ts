@@ -16,7 +16,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
@@ -49,7 +49,7 @@ const RUOLI: Ruolo[] = [
 	{
 		chiave: "capo",
 		etichetta: "Capo (la sessione principale)",
-		predefinito: { model: "xai/grok-4.6", thinking: "medium" },
+		predefinito: { model: "xai/grok-4.6", thinking: "high" },
 	},
 	{
 		chiave: "referente",
@@ -107,7 +107,7 @@ function scriviConfig(cfg: Record<string, Scelta>): void {
 
 /** Sostituisce i segnaposto {{ruolo.campo}} nel manuale. */
 function sostituisci(testo: string, cfg: Record<string, Scelta>): string {
-	return testo.replace(/\{\{([a-z]+)\.(model|thinking)\}\}/g, (intero, chiave, campo) => {
+	return testo.replace(/\{\{\s*([a-z]+)\.(model|thinking)\s*\}\}/g, (intero, chiave, campo) => {
 		const scelta = cfg[chiave];
 		return scelta ? scelta[campo] : intero;
 	});
@@ -165,11 +165,26 @@ function eCapo(ctx: { hasUI?: boolean; mode?: string } | undefined): boolean {
 	return Boolean(ctx?.hasUI) && ctx?.mode !== "print";
 }
 
+/** Questo repo è il prodotto: niente squadra, niente blocco lettura. */
+const NOME_PACCHETTO = new Map<string, string | null>();
+function eQuestoPacchetto(cwd: string): boolean {
+	let nome = NOME_PACCHETTO.get(cwd);
+	if (nome === undefined) {
+		try {
+			nome = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"))?.name ?? null;
+		} catch {
+			nome = null;
+		}
+		NOME_PACCHETTO.set(cwd, nome);
+	}
+	return nome === "pi-software-house";
+}
+
 function percorsoLeggibile(abs: string, cwd: string): boolean {
 	if (/\.md$/i.test(abs)) return true;
 	return CARTELLE_DEL_CAPO.some((rel) => {
 		const base = resolve(cwd, rel);
-		return abs === base || abs.startsWith(base + "/");
+		return abs === base || abs.startsWith(base + sep);
 	});
 }
 
@@ -181,7 +196,6 @@ const PROGETTI = join(AGENT_DIR, "pi-software-house", "progetti.json");
 /** I file che dicono "qui c'e' un progetto": serve per non chiederlo in una cartella qualsiasi. */
 const SEGNALI_PROGETTO = [
 	".git",
-	"docs",
 	"AGENTS.md",
 	"CLAUDE.md",
 	"package.json",
@@ -210,12 +224,14 @@ function documentoVuoto(percorso: string): boolean {
 	} catch {
 		return true;
 	}
+	const haSegnaposto = /<[^>\n]{2,}>/.test(testo);
 	const senzaSegnaposto = testo.replace(/<[^>\n]{2,}>/g, "");
 	const righe = senzaSegnaposto.split("\n").filter((r) => {
 		const s = r.trim();
 		return s !== "" && !s.startsWith("#") && !/^[-|:\s]+$/.test(s);
 	});
-	return righe.length < 3;
+	if (haSegnaposto && righe.length < 10) return true;
+	return righe.length < 2;
 }
 
 /** Cosa manca o non e' stato ancora scritto per davvero, in `docs/`. */
@@ -248,8 +264,21 @@ function segnaProgetto(dir: string, stato: string): void {
 	}
 }
 
+/** Setup in sospeso (entro 24h): prima gli strumenti, l'allineamento aspetta il prossimo avvio. */
+function setupInSospeso(): boolean {
+	try {
+		const quando = Date.parse(
+			readFileSync(join(AGENT_DIR, "pi-software-house", "setup-pending"), "utf8").trim(),
+		);
+		return Number.isFinite(quando) && Date.now() - quando < 24 * 3600 * 1000;
+	} catch {
+		return false;
+	}
+}
+
 const SCELTE_ALLINEAMENTO = {
-	adesso: "Sì, allinea adesso",
+	documenti: "Sì, solo documenti",
+	codice: "Sì, anche il codice",
 	dopo: "Non ora, chiedimelo la prossima volta",
 	mai: "No, non chiedere più per questo progetto",
 };
@@ -258,7 +287,7 @@ const TESTO_ALLINEAMENTO = `Allineamento richiesto: questo progetto e' gia' avvi
 
 Segui la sezione "Allineare un progetto gia' avviato" del manuale:
 0. leggi quello che c'e' gia' dentro prima di scrivere: la riga qui sopra ti dice cosa manca e cosa e' rimasto vuoto;
-1. manda un esploratore (\`Agent\`, general-purpose, sola lettura) a leggere il CODICE — cartelle, moduli, entry point, come si parlano, i comandi veri dai file di configurazione — e a elencarti le aree funzionali reali con i loro file e i .md che trova;
+1. apri un referente (\`subagent\`, \`agent: referente-<area>\`, \`interactive: true\`): i suoi operai leggono il CODICE — cartelle, moduli, entry point, come si parlano, i comandi veri dai file di configurazione — e ti elencano le aree funzionali reali con i loro file e i .md che trovano;
 2. apri un referente per area: ognuno legge il codice della sua area e riempie la sua parte di \`docs/\`;
 3. il codice e' la verita': se un documento dice una cosa e il codice ne dice un'altra, si scrive quello che fa il codice;
 4. un documento che esiste si ALLUNGA, non si sostituisce: prima si legge, poi si aggiunge. Uno vuoto o rimasto scheletro si riempie, leggendo il codice;
@@ -266,6 +295,25 @@ Segui la sezione "Allineare un progetto gia' avviato" del manuale:
 6. \`AGENTS.md\`: se esiste, aggiungi in cima il rimando a \`docs/\` senza togliere niente; se non esiste, crea il solo rimando;
 7. alla fine una revisione: in \`docs/\` non deve mancare niente di quello che c'era prima;
 8. aggiorna \`docs/STATO.md\` e racconta al committente cosa hai spostato e cosa hai riempito.`;
+
+const TESTO_ALLINEAMENTO_CODICE = `${TESTO_ALLINEAMENTO}
+
+In piu', il committente vuole il codice allineato alle regole (quelle di docs/REGOLE.md e del manuale):
+9. un'area alla volta, col suo referente: struttura per area funzionale (non per tipo di file), un file una responsabilita', max 500 righe (oltre si spezza), niente utils generici, test accanto al codice;
+10. solo struttura, non riscrittura: si sposta e si spezza, il comportamento resta identico. Dopo ogni area i test girano e sono verdi, altrimenti si torna indietro;
+11. niente refactor gratuiti: quello che va gia' bene resta dov'e'. Alla fine la revisione confronta comportamento prima/dopo, non solo i documenti.`;
+
+function inviaAllineamento(invia: (testo: string) => void, scelta: string | undefined): boolean {
+	if (scelta === SCELTE_ALLINEAMENTO.codice) {
+		invia(TESTO_ALLINEAMENTO_CODICE);
+		return true;
+	}
+	if (scelta === SCELTE_ALLINEAMENTO.documenti) {
+		invia(TESTO_ALLINEAMENTO);
+		return true;
+	}
+	return false;
+}
 
 // ------------------------------------------------- scelta guidata modello
 
@@ -323,7 +371,12 @@ async function scegliModello(ctx: ExtensionCommandContext, attuale: string): Pro
 		}
 	}
 	const mostrati = lista.slice(0, 200);
-	const scelto = await ctx.ui.select(`Quale modello di ${pScelto}?`, mostrati);
+	const scelto = await ctx.ui.select(
+		lista.length > mostrati.length
+			? `Quale modello di ${pScelto}? (${lista.length} totali, mostro i primi 200: filtra per vedere gli altri)`
+			: `Quale modello di ${pScelto}?`,
+		mostrati,
+	);
 	if (!scelto) return null;
 	return `${pScelto}/${scelto}`;
 }
@@ -375,7 +428,11 @@ async function comandoModelli(pi: ExtensionAPI, ctx: ExtensionCommandContext): P
 
 	let applicato = "";
 	try {
-		const m = (ctx as any).modelRegistry?.find?.(modello.split("/")[0], modello.split("/").slice(1).join("/"));
+		const pezzi = modello.split("/");
+		const m =
+			pezzi.length > 1
+				? (ctx as any).modelRegistry?.find?.(pezzi[0], pezzi.slice(1).join("/"))
+				: undefined;
 		if (m) {
 			const ok = await pi.setModel(m);
 			applicato = ok ? `Modello attivo: ${modello}` : "";
@@ -420,11 +477,19 @@ export default function (pi: ExtensionAPI) {
 		handler: async (_args, ctx) => comandoModelli(pi, ctx),
 	});
 
-	if (!grezzo) return;
+	if (!grezzo) {
+		try {
+			console.warn("[pi-software-house] manual/casa.md non trovato: estensione disattivata.");
+		} catch {
+			// nemmeno l'avviso si puo' dare
+		}
+		return;
+	}
 
 	const skillProgetto = leggiSkill(SKILL_DEL_CAPO);
 
 	pi.on("before_agent_start", async (event, ctx) => {
+		if (eQuestoPacchetto(ctx.cwd)) return;
 		const cfg = leggiConfig();
 		let parte = sostituisci(grezzo, cfg);
 		let squadra = squadraGrezza ? sostituisci(squadraGrezza, cfg) : "";
@@ -450,22 +515,30 @@ export default function (pi: ExtensionAPI) {
 
 	/** Manda il compito al capo senza rompersi se sta gia' rispondendo. */
 	const invia = (testo: string): void => {
-		try {
-			pi.sendUserMessage(testo);
-		} catch {
-			pi.sendUserMessage(testo, { deliverAs: "followUp" });
-		}
+		void (async () => {
+			try {
+				await pi.sendUserMessage(testo);
+			} catch {
+				await pi.sendUserMessage(testo, { deliverAs: "followUp" });
+			}
+		})();
 	};
 
 	pi.registerCommand("allinea", {
-		description: "Allinea questo progetto alla software house (docs/, AGENTS.md)",
+		description: "Allinea questo progetto (solo documenti, o anche il codice)",
 		handler: async (_args, ctx) => {
-			const ok = await ctx.ui.confirm(
-				"Allineo il progetto alla software house?",
-				`${ctx.cwd}\n\nNon cancella niente: sposta i contenuti importanti in \`docs/\` e lascia i file di origine dove sono.`,
+			const scelta = await ctx.ui.select("Allineo il progetto alla software house?", [
+				SCELTE_ALLINEAMENTO.documenti,
+				SCELTE_ALLINEAMENTO.codice,
+				"Annulla",
+			]);
+			if (!inviaAllineamento(invia, scelta)) return;
+			ctx.ui.notify(
+				scelta === SCELTE_ALLINEAMENTO.codice
+					? `Allineo ${ctx.cwd}: documenti e struttura del codice, un'area alla volta coi test verdi.`
+					: `Allineo ${ctx.cwd}: solo documenti, il codice resta dov'e'.`,
+				"info",
 			);
-			if (!ok) return;
-			invia(TESTO_ALLINEAMENTO);
 		},
 	});
 
@@ -487,17 +560,19 @@ export default function (pi: ExtensionAPI) {
 	// Prima apertura in un progetto avviato: la casa non c'e'. Si chiede una volta.
 	pi.on("session_start", async (_event, ctx) => {
 		if (!eCapo(ctx)) return;
+		if (setupInSospeso()) return;
 		const cwd = ctx.cwd;
+		if (eQuestoPacchetto(cwd)) return;
 		if (!eProgetto(cwd)) return;
 		const mancanti = documentiDaSistemare(cwd);
 		if (mancanti.length === 0) return;
 		if (leggiProgetti()[cwd] === "declinato") return;
 		// Senza il tool `Agent` non c'e' nessuno a cui delegare: prima si configura.
-		if (!pi.getAllTools().some((t) => t.name === "Agent")) return;
+		if (!pi.getAllTools().some((t) => t.name === "Agent" || t.name === "subagent")) return;
 
 		const scelta = await ctx.ui.select(
 			`Questo progetto non ha la casa come si deve. Allineo?\n\n${cwd}\n\n${mancanti.join(", ")}`,
-			[SCELTE_ALLINEAMENTO.adesso, SCELTE_ALLINEAMENTO.dopo, SCELTE_ALLINEAMENTO.mai],
+			[SCELTE_ALLINEAMENTO.documenti, SCELTE_ALLINEAMENTO.codice, SCELTE_ALLINEAMENTO.dopo, SCELTE_ALLINEAMENTO.mai],
 		);
 		if (!scelta) return;
 		if (scelta === SCELTE_ALLINEAMENTO.mai) {
@@ -505,20 +580,19 @@ export default function (pi: ExtensionAPI) {
 			ctx.ui.notify("Ok, non lo chiedo più qui. Quando vuoi: /allinea", "info");
 			return;
 		}
-		if (scelta !== SCELTE_ALLINEAMENTO.adesso) return;
+		if (!inviaAllineamento(invia, scelta)) return;
 
-		ctx.ui.notify(`Allineo ${cwd}: non cancello niente.`, "info");
-		invia(TESTO_ALLINEAMENTO);
+		ctx.ui.notify(`Allineo ${cwd}: non cancello niente che conta.`, "info");
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
 		if (!capoLegge) return undefined;
 		if (!eCapo(ctx)) return undefined; // referenti e operai leggono eccome
 		if (!TOOL_DI_LETTURA.has(event.toolName)) return undefined;
+		if (eQuestoPacchetto(ctx.cwd)) return undefined;
 		if (!eCasa(ctx.cwd)) return undefined; // progetto senza docs/: nessuna squadra
 
-		const raw = String(event.input.path ?? "");
-		if (!raw) return undefined;
+		const raw = String(event.input.path ?? event.input.file_path ?? "").trim() || ".";
 		const abs = resolve(ctx.cwd, raw.startsWith("~/") ? join(homedir(), raw.slice(2)) : raw);
 		if (percorsoLeggibile(abs, ctx.cwd)) return undefined;
 
@@ -526,7 +600,7 @@ export default function (pi: ExtensionAPI) {
 			block: true,
 			reason:
 				"Sei il capo e non leggi il codice: lo leggono gli operai.\n" +
-				"Delega con `Agent` (compito da un file) o apri un referente con `subagent` (un'area intera).\n" +
+				"Apri un referente con `subagent` (`agent:`, `interactive: true`). Mai `Agent` sul capo.\n" +
 				`Tu leggi solo \`docs/\` e i file \`.md\`. Serve leggere per forza? Il committente deve dire \`/capo off\`.`,
 		};
 	});

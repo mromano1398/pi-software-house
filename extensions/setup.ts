@@ -8,7 +8,7 @@
  * Comando: /casa  ->  stato e configurazione
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -84,11 +84,18 @@ function leggiSettings(): any {
 	}
 }
 
+export function senzaVersione(s: string): string {
+	return s.replace(/@[^/:]*$/, "");
+}
+
 function sorgentiInstallate(): Set<string> {
 	const out = new Set<string>();
 	for (const e of leggiSettings().packages ?? []) {
 		const s = typeof e === "string" ? e : e?.source;
-		if (typeof s === "string") out.add(s);
+		if (typeof s === "string") {
+			out.add(s);
+			out.add(senzaVersione(s));
+		}
 	}
 	return out;
 }
@@ -100,7 +107,7 @@ function mancanti(): Pacchetto[] {
 
 function paneDaSistemare(): boolean {
 	const cfg = join(AGENT_DIR, "npm", "node_modules", "pi-herdr-agents", "config.json");
-	if (!existsSync(cfg)) return true;
+	if (!existsSync(cfg)) return existsSync(dirname(cfg));
 	try {
 		const d = JSON.parse(readFileSync(cfg, "utf8"));
 		return d?.panes?.mode !== "tab" || d?.roles?.bundled !== false;
@@ -122,7 +129,11 @@ function filtroOk(): boolean {
 function scriviPaneConfig(): void {
 	const cfg = join(AGENT_DIR, "npm", "node_modules", "pi-herdr-agents", "config.json");
 	if (!existsSync(dirname(cfg))) return;
-	writeFileSync(cfg, `${JSON.stringify(PANE_CONFIG, null, 2)}\n`, "utf8");
+	try {
+		writeFileSync(cfg, `${JSON.stringify(PANE_CONFIG, null, 2)}\n`, "utf8");
+	} catch {
+		// layout non scritto: /casa lo segnala ancora, niente crash
+	}
 }
 
 function scriviFiltro(): void {
@@ -142,7 +153,11 @@ function scriviFiltro(): void {
 	}
 	if (!fatto) pkgs.push({ source: "npm:pi-herdr-agents", skills: [] });
 	d.packages = pkgs;
-	writeFileSync(SETTINGS, `${JSON.stringify(d, null, 2)}\n`, "utf8");
+	try {
+		writeFileSync(SETTINGS, `${JSON.stringify(d, null, 2)}\n`, "utf8");
+	} catch {
+		// settings non scritto: /casa lo segnala ancora, niente crash
+	}
 }
 
 interface Stato {
@@ -162,10 +177,63 @@ function stato(): Stato {
 /** Come rilanciare questa stessa installazione di Pi. */
 function comandoPi(): { cmd: string; pre: string[] } {
 	const script = process.argv[1];
-	if (script && existsSync(script) && /\.[cm]?js$/.test(script)) {
+	if (script && existsSync(script) && /\.[cm]?[jt]s$/.test(script)) {
 		return { cmd: process.execPath, pre: [script] };
 	}
 	return { cmd: "pi", pre: [] };
+}
+
+const GIORNI_SALTO = 30;
+
+/** Il "non chiedere piu'" vale 30 giorni, poi si richiede. */
+export function saltoValido(): boolean {
+	try {
+		const quando = Date.parse(readFileSync(SKIP_FILE, "utf8").trim());
+		if (!Number.isFinite(quando)) return false;
+		return Date.now() - quando < GIORNI_SALTO * 24 * 3600 * 1000;
+	} catch {
+		return false;
+	}
+}
+
+function segnaSalto(): void {
+	try {
+		mkdirSync(dirname(SKIP_FILE), { recursive: true });
+		writeFileSync(SKIP_FILE, `${new Date().toISOString()}\n`, "utf8");
+	} catch {
+		// senza memoria lo richiede la volta dopo
+	}
+}
+
+/** Setup in sospeso: l'allineamento aspetta il prossimo avvio. */
+function attesaFile(): string {
+	return join(AGENT_DIR, "pi-software-house", "setup-pending");
+}
+
+function segnaAttesa(): void {
+	try {
+		mkdirSync(dirname(attesaFile()), { recursive: true });
+		writeFileSync(attesaFile(), `${new Date().toISOString()}\n`, "utf8");
+	} catch {
+		// senza memoria entrambi chiedono, come prima
+	}
+}
+
+function togliAttesa(): void {
+	try {
+		unlinkSync(attesaFile());
+	} catch {
+		// gia' tolto o mai messo
+	}
+}
+
+function attesaValida(): boolean {
+	try {
+		const quando = Date.parse(readFileSync(attesaFile(), "utf8").trim());
+		return Number.isFinite(quando) && Date.now() - quando < 24 * 3600 * 1000;
+	} catch {
+		return false;
+	}
 }
 
 async function configura(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
@@ -182,8 +250,13 @@ async function configura(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promis
 	if (paneDaSistemare()) scriviPaneConfig();
 	if (!filtroOk()) scriviFiltro();
 
-	if (errori || !stato().tuttoOk) {
+	togliAttesa();
+	if (errori) {
 		ctx.ui.notify("Configurazione incompleta. Rilancia /casa e riprova.", "warning");
+		return;
+	}
+	if (!stato().tuttoOk) {
+		ctx.ui.notify("Installato. Riavvia Pi cosi' i nuovi strumenti si caricano, poi rilancia /casa.", "warning");
 		return;
 	}
 	ctx.ui.notify("Software house configurata. Riavvia Pi perché i nuovi strumenti si carichino.", "info");
@@ -218,7 +291,8 @@ export default function (pi: ExtensionAPI) {
 		if (!ctx.hasUI) return;
 		const s = stato();
 		if (s.tuttoOk) return;
-		if (existsSync(SKIP_FILE)) return;
+		if (saltoValido()) return;
+		segnaAttesa();
 
 		const righe: string[] = [];
 		if (s.mancano.length) {
@@ -230,12 +304,11 @@ export default function (pi: ExtensionAPI) {
 
 		const ok = await ctx.ui.confirm(
 			"Configuro la software house?",
-			`${righe.join("\n")}\n\nSi scarica da solo, poi riavvia Pi.`,
+			`${righe.join("\n")}\n\nPrima gli strumenti, poi i documenti: al prossimo avvio tocca all'allineamento. Si scarica da solo, poi riavvia Pi.`,
 		);
 		if (!ok) {
-			mkdirSync(dirname(SKIP_FILE), { recursive: true });
-			writeFileSync(SKIP_FILE, "declinato\n", "utf8");
-			ctx.ui.notify("Ok, non lo chiedo più. Quando vuoi: /casa", "info");
+			segnaSalto();
+			ctx.ui.notify("Ok, non lo chiedo più per un po'. Quando vuoi: /casa", "info");
 			return;
 		}
 		await configura(pi, ctx);

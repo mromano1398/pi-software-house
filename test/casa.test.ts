@@ -88,12 +88,14 @@ const scheletri = () =>
 	);
 
 function conNome<T>(nome: string | undefined, fn: () => T): T {
+	const prima = process.env.PI_SUBAGENT_NAME;
 	if (nome === undefined) delete process.env.PI_SUBAGENT_NAME;
 	else process.env.PI_SUBAGENT_NAME = nome;
 	try {
 		return fn();
 	} finally {
-		delete process.env.PI_SUBAGENT_NAME;
+		if (prima === undefined) delete process.env.PI_SUBAGENT_NAME;
+		else process.env.PI_SUBAGENT_NAME = prima;
 	}
 }
 
@@ -143,7 +145,34 @@ describe("il capo", () => {
 		expect(await prompt(operaio(cwd))).not.toContain(marker);
 	});
 
-test("la casa è divisa: regole per tutti e parte del capo", async () => {
+test("grep/find/ls senza path sono il cwd: il capo non li usa sul codice", async () => {
+		const { chiama } = carica(casa);
+		const cwd = cartella("codice", { "docs/STATO.md": "# Stato\n", "src/index.ts": "x\n" });
+		expect(await chiama("grep", { pattern: "x" }, capo(cwd))).toMatchObject({ block: true });
+		expect(await chiama("find", { pattern: "*.ts" }, capo(cwd))).toMatchObject({ block: true });
+		expect(await chiama("ls", {}, capo(cwd))).toMatchObject({ block: true });
+	});
+
+	test("in questo pacchetto il capo legge il codice e non prende le istruzioni di capo", async () => {
+		const { chiama, prompt } = carica(casa);
+		const cwd = cartella("prodotto", {
+			"package.json": JSON.stringify({ name: "pi-software-house" }) + "\n",
+			"docs/STATO.md": "# Stato\n",
+			"extensions/casa.ts": "export default function () {}\n",
+		});
+		expect(await chiama("read", { path: "extensions/casa.ts" }, capo(cwd))).toBeUndefined();
+		expect(await prompt(capo(cwd))).not.toContain("sei il CAPO");
+	});
+
+	test("dopo un referente il capo resta capo", async () => {
+		const { chiama, prompt } = carica(casa);
+		const cwd = cartella("codice", { "docs/STATO.md": "# Stato\n", "src/index.ts": "x\n" });
+		expect(await conNome("referente-mag", () => chiama("read", { path: "src/index.ts" }, referente(cwd)))).toBeUndefined();
+		expect(await chiama("read", { path: "src/index.ts" }, capo(cwd))).toMatchObject({ block: true });
+		expect(await prompt(capo(cwd))).toContain("sei il CAPO");
+	});
+
+	test("la casa è divisa: regole per tutti e parte del capo", async () => {
 	const { prompt } = carica(casa);
 	const cwd = avviato();
 	const tutti = await prompt(operaio(cwd));
@@ -157,7 +186,7 @@ test("la casa è divisa: regole per tutti e parte del capo", async () => {
 describe("allineamento di un progetto avviato", () => {
 	test("chiede e poi manda il compito al capo", async () => {
 		const { avvia, messaggi } = carica(casa);
-		await avvia(capo(avviato(), sceglie("Sì, allinea adesso")));
+		await avvia(capo(avviato(), sceglie("Sì, solo documenti")));
 		expect(messaggi).toHaveLength(1);
 		expect(messaggi[0]).toContain("Allineamento richiesto");
 	});
@@ -165,14 +194,14 @@ describe("allineamento di un progetto avviato", () => {
 	test("non chiede in un progetto che ha già la casa, e scritta", async () => {
 		const { avvia, messaggi } = carica(casa);
 		const cwd = allineato();
-		await avvia(capo(cwd, sceglie("Sì, allinea adesso")));
+		await avvia(capo(cwd, sceglie("Sì, solo documenti")));
 		expect(messaggi).toHaveLength(0);
 		expect(await avvia(capo(cwd, sceglie("No, non chiedere più per questo progetto")))).toBeUndefined();
 	});
 
 	test("chiede anche se docs/ c'è ma è fatta diversamente", async () => {
 		const { avvia, messaggi } = carica(casa);
-		await avvia(capo(casaATema(), sceglie("Sì, allinea adesso")));
+		await avvia(capo(casaATema(), sceglie("Sì, solo documenti")));
 		expect(messaggi).toHaveLength(1);
 	});
 
@@ -185,9 +214,16 @@ describe("allineamento di un progetto avviato", () => {
 		expect(eventi.session_start).toHaveLength(1);
 	});
 
+	test("con anche il codice ordina la struttura un'area alla volta", async () => {
+		const { avvia, messaggi } = carica(casa);
+		await avvia(capo(avviato(), sceglie("Sì, anche il codice")));
+		expect(messaggi).toHaveLength(1);
+		expect(messaggi[0]).toContain("un'area alla volta");
+	});
+
 	test("non chiede in una cartella qualsiasi", async () => {
 		const { avvia, messaggi } = carica(casa);
-		await avvia(capo(cartella("qualsiasi"), sceglie("Sì, allinea adesso")));
+		await avvia(capo(cartella("qualsiasi"), sceglie("Sì, solo documenti")));
 		expect(messaggi).toHaveLength(0);
 	});
 
@@ -247,7 +283,7 @@ describe("i segreti", () => {
 
 test("la skill progetto e' gia' nel prompt del capo", async () => {
 	const { prompt } = carica(casa);
-	const testo = await prompt(capo(process.cwd()));
+	const testo = await prompt(capo(avviato()));
 	expect(testo).toContain("## Spezzare un documento che sfonda il tetto");
 	expect(testo).toContain("docs/PROGETTO.md");
 });

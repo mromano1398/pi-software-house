@@ -22,35 +22,36 @@ import path from "node:path";
 type Rule = { name: string; re: RegExp };
 
 /** I tool che eseguono comandi: bash su Unix, powershell su Windows. */
-const SHELL_TOOLS = new Set(["bash", "powershell"]);
+const SHELL_TOOLS = new Set(["bash", "powershell", "sh", "zsh", "fish", "pwsh", "cmd"]);
 
 const SYSTEM_LEVEL: Rule[] = [
 	// Unix
 	{ name: "sudo", re: /(^|[;&|(]\s*)sudo\b/i },
 	{ name: "mkfs/wipefs", re: /\b(mkfs(\.\w+)?|wipefs)\b/i },
 	{ name: "dd to disk", re: /\bdd\b[^\n]*\bof=\/dev\//i },
-	{ name: "pipe to shell", re: /\b(curl|wget|fetch)\b[\s\S]{0,300}\|\s*(ba|z|k)?sh\b/i },
+	{ name: "pipe to shell", re: /\b(curl|wget|fetch)\b[\s\S]{0,2000}\|\s*(sudo\s+)?(ba|z|k)?sh\b/i },
 	{ name: "shutdown/reboot", re: /\b(reboot|shutdown|halt|poweroff|init\s+0)\b/i },
 	{ name: "publish", re: /\b(npm|pnpm|yarn)\s+publish\b|\btwine\s+upload\b|\bcargo\s+publish\b/i },
-	{ name: "docker prune", re: /\bdocker\s+(system\s+)?prune\b/i },
+	{ name: "docker prune", re: /\bdocker\s+(system\s+|image\s+|container\s+|volume\s+|network\s+|builder\s+)?prune\b/i },
 	{ name: "force push to main", re: /\bgit\s+push\b[^\n]*\s(--force|-f)\b[^\n]*\b(main|master)\b/i },
+	{ name: "force push to main (flag dopo)", re: /\bgit\s+push\b[^\n]*\b(main|master)\b[^\n]*\s(--force|-f)\b/i },
 	// Windows / PowerShell
 	{ name: "formattazione disco", re: /\b(Format-Volume|Clear-Disk|Initialize-Disk|diskpart)\b/i },
 	{ name: "spegnimento/riavvio", re: /\b(Stop-Computer|Restart-Computer)\b/i },
-	{ name: "pipe to shell (PS)", re: /\b(Invoke-WebRequest|iwr|curl)\b[\s\S]{0,300}\|\s*(Invoke-Expression|iex)\b/i },
+	{ name: "pipe to shell (PS)", re: /\b(Invoke-WebRequest|iwr|curl)\b[\s\S]{0,2000}\|\s*(Invoke-Expression|iex)\b/i },
 	{ name: "esecuzione di script remoti", re: /\b(Invoke-Expression|iex)\b[^\n]*\b(Invoke-WebRequest|iwr|DownloadString)\b/i },
 	{ name: "execution policy", re: /\bSet-ExecutionPolicy\b/i },
 	{ name: "publish (PS)", re: /\b(npm|pnpm|yarn|dotnet)\s+(publish|nuget\s+push)\b/i },
 	{ name: "force push to main (PS)", re: /\bgit\s+push\b[^\n]*\s(--force|-f)\b[^\n]*\b(main|master)\b/i },
+	{ name: "force push to main (PS, flag dopo)", re: /\bgit\s+push\b[^\n]*\b(main|master)\b[^\n]*\s(--force|-f)\b/i },
 ];
 
 const WIPE_ALL: Rule[] = [
 	// Unix
-	{ name: "rm -rf sulla cartella corrente", re: /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+(\.\/?|\*|\$PWD|"\$PWD"|\$\(pwd\))\s*$/i },
+	{ name: "rm -rf sulla cartella corrente", re: /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+(\.\/?|\*|\$PWD|"\$PWD"|\$\(pwd\))(\s|$|;|&)/i },
 	{ name: "rm -rf su una cartella dell'utente", re: /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+~\//i },
 	{ name: "git reset --hard", re: /\bgit\s+reset\s+[^\n]*--hard\b/i },
-	{ name: "git clean -fdx", re: /\bgit\s+clean\b[^\n]*-[a-zA-Z]*[fd][a-zA-Z]*/i },
-	{ name: "find -delete", re: /\bfind\b[^\n]*-delete\b/i },
+	{ name: "git clean -fdx", re: /\bgit\s+clean\b(?=[^\n]*f)(?=[^\n]*d)/i },
 	{ name: "svuota la cartella", re: /\b(shred|truncate)\b[^\n]*\s(\.|\*)(\s|$)/i },
 	// Windows / PowerShell / cmd
 	{ name: "Remove-Item -Recurse -Force .", re: /\bRemove-Item\b[^\n]*-[^\n]*(Recurse|Force)[^\n]*\s(\.|\*)(\s|$)/i },
@@ -100,12 +101,13 @@ const ENV_SEGRETO = /^\.env(\..+)?$/i;
 const ENV_MODELLO = /\.(example|sample|dist|template)$/i;
 
 const DESTRUCTIVE_CMD =
-	/\b(rm|rmdir|mv|chmod|chown|truncate|shred|tee)\b|(^|\s)>\s*\/|\b(Remove-Item|del|erase|rd|Move-Item|Set-Content|Clear-Content|Out-File)\b/i;
+	/\b(rm|rmdir|mv|chmod|chown|truncate|shred|tee)\b|(^|\s|\d)>{1,2}\s*\S|\b(Remove-Item|del|erase|rd|Move-Item|Set-Content|Clear-Content|Out-File)\b/i;
 
-/** Gli unici percorsi che un referente può scrivere: assunzioni, skill e documenti. */
+/** Gli unici percorsi che un referente può scrivere: assunzioni, skill, bus di squadra e documenti. */
 const REFERENT_WRITABLE = [
 	path.join(".agents", "agents"),
 	path.join(".pi", "skills"),
+	path.join(".pi", "team"),
 	path.join(".agents", "skills"),
 	"docs",
 	// nomi vecchi, ancora accettati
@@ -117,6 +119,22 @@ const REFERENT_WRITABLE = [
 const READ_TOOLS = new Set(["read", "grep", "find", "ls"]);
 const WRITE_TOOLS = new Set(["write", "edit"]);
 
+function referentePuoScrivere(abs: string, cwd: string): boolean {
+	return REFERENT_WRITABLE.some((rel) => {
+		const target = path.resolve(cwd, rel);
+		return abs === target || abs.startsWith(target + path.sep);
+	});
+}
+
+/** Dove punta un redirect `>` `>>` della shell, se c'e'. */
+function targetRedirect(command: string, cwd: string): string[] {
+	const fuori: string[] = [];
+	for (const m of command.matchAll(/>{1,2}\s*([^>\s;|&'"]+)/g)) {
+		if (m[1]) fuori.push(resolvePath(m[1], cwd));
+	}
+	return fuori;
+}
+
 function resolvePath(p: string, cwd: string): string {
 	if (!p) return "";
 	const expanded = p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p;
@@ -125,6 +143,7 @@ function resolvePath(p: string, cwd: string): string {
 
 function isSecretPath(abs: string): boolean {
 	const base = path.basename(abs);
+	if (/\.md$/i.test(base)) return false;
 	if (base.endsWith(".pub") || base === ".env.example" || base === ".env.sample") return false;
 	if (SECRET_BASENAMES.has(base)) return true;
 	if (ENV_SEGRETO.test(base) && !ENV_MODELLO.test(base)) return true;
@@ -143,7 +162,7 @@ function insideProject(abs: string, cwd: string): boolean {
 /** Percorsi assoluti o ~/ citati in un comando: Unix e Windows. */
 function externalTargets(command: string, cwd: string): string[] {
 	const found: string[] = [];
-	const re = /(?:^|\s)(~\/[^\s;|&)'"]*|\/[A-Za-z0-9._/-]+|[A-Za-z]:[\\/][^\s;|&)'"]*)/g;
+	const re = /(?:^|[\s=])(~\/[^\s;|&)'"]*|\.\.[\\/][^\s;|&)'"]*|\/[A-Za-z0-9._/-]+|[A-Za-z]:[\\/][^\s;|&)'"]*)/g;
 	for (const m of command.matchAll(re)) {
 		const abs = resolvePath(m[1], cwd);
 		if (!insideProject(abs, cwd)) found.push(abs);
@@ -203,6 +222,29 @@ export default function (pi: ExtensionAPI) {
 			const wipe = WIPE_ALL.find((r) => r.re.test(command));
 			if (wipe) return ask(ctx, `Sta per cancellare tutto (${wipe.name}):\n\n  ${command}`, wipe.name);
 
+			if (/\bfind\b[^\n]*-delete\b/i.test(command)) {
+				const outside = externalTargets(command, ctx.cwd);
+				if (outside.length) {
+					return ask(
+						ctx,
+						`Cancellazione fuori dal progetto:\n\n  ${command}\n\n  → ${outside.join("\n  → ")}`,
+						"outside",
+					);
+				}
+				return undefined;
+			}
+
+			if (process.env.PI_SUBAGENT_NAME && ctx.hasUI) {
+				const vietato = targetRedirect(command, ctx.cwd).find((t) => !referentePuoScrivere(t, ctx.cwd));
+				if (vietato) {
+					return {
+						block: true,
+						reason:
+							"Un referente non scrive codice. Solo write in .agents/agents/, .pi/skills/, .pi/team/ e docs/. Il codice lo scrive un operaio.",
+					};
+				}
+			}
+
 			if (DESTRUCTIVE_CMD.test(command)) {
 				const outside = externalTargets(command, ctx.cwd);
 				if (outside.length) {
@@ -220,14 +262,11 @@ export default function (pi: ExtensionAPI) {
 		if (!raw) return undefined;
 		const abs = resolvePath(raw, ctx.cwd);
 
-		// Un referente (sub-agente pi-herdr) non scrive codice: assume operai e
-		// tiene i documenti. Tutto il resto è bloccato.
-		if (process.env.PI_SUBAGENT_NAME && WRITE_TOOLS.has(event.toolName)) {
-			const canWrite = REFERENT_WRITABLE.some((rel) => {
-				const target = path.resolve(ctx.cwd, rel);
-				return abs === target || abs.startsWith(target + path.sep);
-			});
-			if (!canWrite) {
+		// Un referente (pane Herdr: nome + interfaccia) non scrive codice:
+		// assume operai e tiene i documenti. Gli operai nested girano nello
+		// stesso processo ma senza interfaccia: loro il codice lo scrivono.
+		if (process.env.PI_SUBAGENT_NAME && ctx.hasUI && WRITE_TOOLS.has(event.toolName)) {
+			if (!referentePuoScrivere(abs, ctx.cwd)) {
 				if (ctx.hasUI) ctx.ui.notify(`Referente: scrittura bloccata su ${abs}`, "warning");
 				return {
 					block: true,
@@ -249,14 +288,14 @@ export default function (pi: ExtensionAPI) {
 			// testo: si leggono sempre, senza chiedere ogni volta il permesso.
 			if (/\.md$/i.test(abs)) return undefined;
 			if (!insideProject(abs, ctx.cwd)) {
-				return ask(ctx, `Lettura fuori dal progetto:\n\n  ${abs}`, `read-outside:${path.dirname(abs)}`);
+				return ask(ctx, `Lettura fuori dal progetto:\n\n  ${abs}`, `read-outside:${abs}`);
 			}
 			return undefined;
 		}
 
 		if (WRITE_TOOLS.has(event.toolName)) {
 			if (!insideProject(abs, ctx.cwd)) {
-				return ask(ctx, `Scrittura fuori dal progetto:\n\n  ${abs}`, `write-outside:${path.dirname(abs)}`);
+				return ask(ctx, `Scrittura fuori dal progetto:\n\n  ${abs}`, `write-outside:${abs}`);
 			}
 			return undefined;
 		}

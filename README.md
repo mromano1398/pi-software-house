@@ -59,13 +59,13 @@ L'organigramma non è un suggerimento: è imposto dai **permessi**. Un referente
 
 ### Chi parla con chi
 
-Il team è **vivo e parla in tempo reale**: ogni sessione — capo, referenti, operai — è un peer con un indirizzo. `talk_sessions` li elenca, `talk_to` manda un messaggio e aspetta la risposta, `talk_latest` legge le ultime cose dette.
+Il canale vero è il **bus di squadra** (`.pi/team/`, estensione `team.ts`): un file per messaggio, quattro tipi (`fatto`, `bloccato`, `domanda`, `aggiornamento`). Solo il capo parla con te. Comando `/squadra`: chi fa cosa, bloccati e domande.
 
-**Nessuno interrompe nessuno.** Un messaggio che arriva mentre stai lavorando **resta in coda**: finisci il turno che hai in mano senza perdere niente, poi rispondi e riprendi. Chi ha chiesto non riceve subito una risposta e non richiama: viene svegliato quando l'altra parte è libera. Chi risponde non molla il suo lavoro a metà per farlo.
+**Nessuno interrompe nessuno.** Scrivi nel bus e vai avanti; la risposta arriva nel bus e torna giù per la stessa strada. `talk_to` resta solo per le urgenze tra pane (capo ↔ referenti).
 
-- Il capo → con i **referenti**
-- I referenti → con il capo, **tra loro**, e con i **loro** operai
-- Gli operai → con il **loro** referente (che gli passa il proprio indirizzo nel compito). Tra operai non si parla: coordina il referente
+- Il capo → con i **referenti** (bus + `talk_to` se urgente)
+- I referenti → con il capo, **tra loro**, e con i **loro** operai (bus; operai corretti con `steer_subagent`)
+- Gli operai → solo col **loro** referente via bus. Niente `talk_to` (non sono pane), niente delega. Tra operai non si parla: coordina il referente
 
 I referenti vivono in **pane Herdr**, quindi li vedi lavorare e puoi entrare a parlare con loro. Gli operai lavorano dentro la sessione del referente, senza aprire pane: altrimenti dieci operai significherebbero dieci pane.
 
@@ -77,7 +77,7 @@ Si ferma al primo gradino che risponde:
 |---|---|---|
 | 1 | `docs/DECISIONI.md`, `PROGETTO.md`, `REGOLE.md`, `ARCHITETTURA.md` | la risposta c'è già quasi sempre: i documenti esistono per questo |
 | 2 | il codice | com'è fatto il resto è come va fatto anche questo |
-| 3 | la squadra (`talk_to`) | l'operaio al suo referente, il referente agli altri referenti |
+| 3 | la squadra (il bus) | l'operaio al suo referente, il referente agli altri referenti |
 | 4 | **decide da solo** | tutto ciò che si cambia dopo a costo quasi zero |
 | 5 | il committente | solo se la scelta è sua e sbagliarla costa |
 
@@ -123,7 +123,7 @@ Il capo non mobilita la squadra al completo per ogni sciocchezza:
 | Livello | Quando | Chi scende in campo |
 |---|---|---|
 | **T0** | domanda, nessuna modifica | solo il capo, due frasi |
-| **T1** | un file, correzione piccola | **1 operaio generico**, nessun referente |
+| **T1** | un file, correzione piccola | 1 referente che lancia 1 operaio. Mai `Agent` sul capo |
 | **T2** | un'area, pochi file | 1 referente, che prende i suoi operai |
 | **T3** | più aree, o rischio su dati/sicurezza | 2-3 referenti, più una revisione finale |
 
@@ -146,7 +146,8 @@ Se il progetto esiste già, non si rifà: **si allinea**. Alla prima apertura in
 
 | Scelta | Cosa succede |
 |---|---|
-| **Sì, allinea adesso** | parte l'allineamento |
+| **Sì, solo documenti** | allinea i documenti, il codice resta dov'è |
+| **Sì, anche il codice** | dopo i documenti sistema la struttura del codice, un'area alla volta coi test verdi |
 | **Non ora** | te lo richiede la prossima volta |
 | **No, mai più qui** | se lo ricorda per quel progetto (`~/.pi/agent/pi-software-house/progetti.json`) |
 
@@ -174,9 +175,10 @@ In Pi una skill **non può** essere "sempre caricata": all'avvio Pi mostra solo 
 |---|---|
 | `/casa` | stato della software house e configurazione automatica |
 | `/modelli` | scegli modello ed effort per ogni ruolo |
-| `/allinea` | allinea questo progetto alla struttura della software house |
+| `/allinea` | allinea questo progetto (solo documenti, o anche il codice) |
 | `/capo on\|off` | il capo legge il codice (di norma è bloccato) |
 | `/safety on\|off` | il gate di sicurezza |
+| `/squadra` | stato della squadra: chi fa cosa, bloccati e domande |
 
 ## Il flusso
 
@@ -212,7 +214,7 @@ IL CAPO LEGGE docs/STATO.md E docs/DECISIONI.md — non il codice
   │  sceglie quanto scendere in campo:
   │
   ├─ T0  domanda, nessuna modifica ─► risponde lui, due frasi
-  ├─ T1  un file ───────────────────► 1 operaio generico (Agent)
+  ├─ T1  un file ───────────────────► 1 referente (subagent) → 1 operaio (Agent)
   ├─ T2  un'area ───────────────────► 1 referente (subagent, pane Herdr) → suoi operai
   └─ T3  più aree, o rischio ───────► 2-3 referenti → operai + una revisione finale
   │
@@ -361,10 +363,11 @@ Tu:    Apri Pi in ~/progetti/fibra (esiste da mesi, ha AGENTS.md, ha un po' di d
 Pi     «Questo progetto non ha la casa come si deve. Allineo?
         mancano: PROGETTO.md, ARCHITETTURA.md, REGOLE.md, DECISIONI.md»
 
-Tu:    Sì, allinea adesso.
+Tu:    Sì, solo documenti.   (oppure: Sì, anche il codice.)
 
-capo   manda un esploratore a leggere il CODICE, area per area
-       apre un referente per ogni area vera che l'esploratore ha trovato
+capo   apre un referente per area: i loro operai leggono il CODICE
+       e i referenti riempiono docs/ (con "anche il codice", dopo sistemano
+       la struttura un'area alla volta, test verdi dopo ogni area)
 
 referenti
        leggono a fondo il codice della loro area
@@ -500,8 +503,9 @@ pi-software-house/
 │   ├── casa.ts               inietta il manuale e le skill del capo, /modelli, /allinea, /capo
 │   ├── setup.ts              configura tutto alla prima apertura (/casa)
 │   ├── safety-gate.ts        il gate: libertà dentro, prudenza fuori
-│   ├── notify.ts             avviso sul desktop quando ha finito
-│   ├── git-checkpoint.ts     checkpoint per tornare indietro sul codice
+│   ├── team.ts               il bus di squadra: capo, referenti e operai parlano qui (/squadra)
+│   ├── notify.ts             avviso sul desktop quando ha finito (solo dal capo)
+│   ├── git-checkpoint.ts     checkpoint su disco per tornare indietro col codice
 │   └── plan-mode/            modalità sola lettura per pensare prima di agire
 ├── skills/
 │   ├── crew/                 come si assume un referente e un operaio
@@ -511,7 +515,7 @@ pi-software-house/
 │   ├── grilling/             domande a round quando la richiesta è ambigua
 │   └── diagnosing-bugs/      disciplina per i bug difficili
 ├── prompts/                  /implement /review /test /commit /explore
-├── test/casa.test.ts         i test: chi è il capo, blocco lettura, allineamento, skill
+├── test/                     i test: capo, bus di squadra, gate, allineamento, checkpoint (`bun test`)
 └── setup/                    gli script di configurazione per Linux/macOS e Windows
 ```
 

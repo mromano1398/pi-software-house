@@ -123,9 +123,10 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	}
 
 	function togglePlanMode(ctx: ExtensionContext): void {
-		planModeEnabled = !planModeEnabled;
+		const accendo = !planModeEnabled;
+		planModeEnabled = accendo;
 		executionMode = false;
-		todoItems = [];
+		if (accendo) todoItems = [];
 
 		if (planModeEnabled) {
 			enablePlanModeTools();
@@ -184,13 +185,12 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				if (msg.role !== "user") return true;
 
 				const content = msg.content;
+				const nostro = (t: string) => t.trimStart().startsWith("[PLAN MODE ACTIVE]");
 				if (typeof content === "string") {
-					return !content.includes("[PLAN MODE ACTIVE]");
+					return !nostro(content);
 				}
 				if (Array.isArray(content)) {
-					return !content.some(
-						(c) => c.type === "text" && (c as TextContent).text?.includes("[PLAN MODE ACTIVE]"),
-					);
+					return !content.some((c) => c.type === "text" && nostro((c as TextContent).text ?? ""));
 				}
 				return true;
 			}),
@@ -322,17 +322,19 @@ ${remainingList}
 
 Start with: ${firstTodoItem.text}
 After completing a step, include a [DONE:n] tag in your response.`;
-			pi.sendMessage(planTodoListMessage, { deliverAs: "followUp" });
-			pi.sendMessage(
+			await pi.sendMessage(planTodoListMessage, { deliverAs: "followUp" });
+			await pi.sendMessage(
 				{ customType: "plan-mode-execute", content: execMessage, display: true },
 				{ triggerTurn: true, deliverAs: "followUp" },
 			);
 		} else if (choice === "Refine the plan") {
 			const refinement = await ctx.ui.editor("Refine the plan:", "");
 			if (refinement?.trim()) {
-				pi.sendMessage(planTodoListMessage, { deliverAs: "followUp" });
-				pi.sendUserMessage(refinement.trim(), { deliverAs: "followUp" });
+				await pi.sendMessage(planTodoListMessage, { deliverAs: "followUp" });
+				await pi.sendUserMessage(refinement.trim(), { deliverAs: "followUp" });
 			}
+		} else {
+			ctx.ui.notify("Resto in plan mode: i passi sono salvi, /plan per uscire.", "info");
 		}
 	});
 
@@ -370,16 +372,19 @@ After completing a step, include a [DONE:n] tag in your response.`;
 				}
 			}
 
-			// Only scan messages after the execute marker
-			const messages: AssistantMessage[] = [];
-			for (let i = executeIndex + 1; i < entries.length; i++) {
-				const entry = entries[i];
-				if (entry.type === "message" && "message" in entry && isAssistantMessage(entry.message as AgentMessage)) {
-					messages.push(entry.message as AssistantMessage);
+			// Senza marcatore di esecuzione non si indovina: i DONE vecchi restano fuori.
+			if (executeIndex !== -1) {
+				// Only scan messages after the execute marker
+				const messages: AssistantMessage[] = [];
+				for (let i = executeIndex + 1; i < entries.length; i++) {
+					const entry = entries[i];
+					if (entry.type === "message" && "message" in entry && isAssistantMessage(entry.message as AgentMessage)) {
+						messages.push(entry.message as AssistantMessage);
+					}
 				}
+				const allText = messages.map(getTextContent).join("\n");
+				markCompletedSteps(allText, todoItems);
 			}
-			const allText = messages.map(getTextContent).join("\n");
-			markCompletedSteps(allText, todoItems);
 		}
 
 		if (planModeEnabled) {

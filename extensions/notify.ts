@@ -9,6 +9,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { execFile } from "node:child_process";
 
 function windowsToastScript(title: string, body: string): string {
 	const type = "Windows.UI.Notifications";
@@ -33,25 +34,34 @@ function notifyOSC99(title: string, body: string): void {
 	process.stdout.write(`\x1b]99;i=1:p=body;${body}\x1b\\`);
 }
 
-function notifyWindows(title: string, body: string): void {
-	const { execFile } = require("child_process");
+function notificaWindows(title: string, body: string): void {
 	execFile("powershell.exe", ["-NoProfile", "-Command", windowsToastScript(title, body)]);
 }
 
+function esc(s: string): string {
+	return s.replace(/[;\x1b\x07\n]/g, " ").slice(0, 200);
+}
+
 function notify(title: string, body: string): void {
+	const t = esc(title);
+	const b = esc(body);
 	if (process.env.WT_SESSION) {
-		notifyWindows(title, body);
+		notificaWindows(t, b);
 	} else if (process.env.KITTY_WINDOW_ID) {
-		notifyOSC99(title, body);
+		notifyOSC99(t, b);
 	} else {
-		notifyOSC777(title, body);
+		notifyOSC777(t, b);
 	}
 }
 
 export default function (pi: ExtensionAPI) {
 	// `agent_end` fires after each low-level run; Pi may still retry, compact,
 	// or continue with queued follow-ups. Notify only after the full run settles.
-	pi.on("agent_settled", async () => {
+	// Solo il capo avvisa il committente: gli operai nested non hanno UI e i
+	// referenti rispondono nel bus, non con una notifica all'utente.
+	pi.on("agent_settled", async (_event, ctx) => {
+		if (process.env.PI_SUBAGENT_NAME) return;
+		if (ctx && !(ctx as any).hasUI) return;
 		notify("Pi", "Ready for input");
 	});
 }
